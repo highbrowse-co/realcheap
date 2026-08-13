@@ -1,5 +1,23 @@
 # Decisions
 
+### 2026-08-13 — Logged two doc ambiguities before writing any integration code
+Context: CLAUDE.md hard constraint 3 requires stopping and recording ambiguities in
+`docs/OPEN-QUESTIONS.md` rather than guessing. Two were found while reading the partner docs:
+the HMAC algorithm (`authentication.md` says SHA-512; the offer reference pages say SHA-256 in
+passing) and the `context` object schema for Create Offer (documented only as "schema-defined
+fields," with no example body anywhere public — the parcel/shipping vertical page, the closest
+analogue to shipped goods, explicitly defers to a Customer Success Engineer for examples).
+Choice: wrote both up in `docs/OPEN-QUESTIONS.md` before touching `signing.ts` or the offer
+routes, then proceeded with a provisional resolution for each (SHA-512; discover `context`
+fields by probing the live sandbox and reading 422 errors) so the build isn't blocked, while
+flagging both as things to confirm with Cover Genius directly.
+Alternatives rejected: guessing silently and moving on — explicitly what CLAUDE.md says not to
+do; skipping the sandbox probe and inventing plausible `context` field names — also explicitly
+prohibited (hard constraint 2, never invent field names).
+AI note: Both ambiguities were caught by actually reading the fetched doc pages side by side,
+not assumed. The SHA-512 vs SHA-256 conflict in particular is exactly the kind of thing that's
+easy to miss if you stop reading after the first page that mentions an algorithm.
+
 ### 2026-08-13 — Repo scaffold: npm workspaces, Express/TS server, Vite/React/TS web
 Context: Starting from an empty repo (just `CLAUDE.md`, `.env`, `.env.example`, `.gitignore`).
 CLAUDE.md mandates the `/server` (Express+TS) and `/web` (Vite+React) split and a single
