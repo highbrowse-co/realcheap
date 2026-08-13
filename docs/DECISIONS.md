@@ -1,5 +1,21 @@
 # Decisions
 
+### 2026-08-13 — Excluded the assignment brief PDF from version control
+Context: the original case-study brief (`CSE Interview Candidate Case Study - Retail China.pdf`)
+was sitting in the repo root, predating this session's work.
+Choice: gitignored rather than committed — it's Cover Genius's own document about the interview
+process, not project source, and doesn't belong in an artifact the panel will read as code.
+Confirmed against the actual brief text that the built prototype's scope matches what's asked
+for: retrieve/visualize a laptop's coverage, opt-in/decline, and expose live request/response
+data on the frontend are exactly the three bulleted "should" requirements: everything else in
+the brief's "Technical Considerations" (eligibility engine, webhook claims, full settlement)
+is context, not a requirement, and CLAUDE.md's decision to diagram-rather-than-build those
+matches the 12-hour scope note in the brief.
+AI note: reading the actual brief (rather than working only from CLAUDE.md's paraphrase of it)
+surfaced two dead hyperlinks lost in the PDF export — the presentation slide template and the
+"developer hub" docs link both render as plain text with no URL. Flagged to the user rather
+than guessing at a URL, consistent with hard constraint 2.
+
 ### 2026-08-13 — README.md, verified against an actual clean clone
 Context: CLAUDE.md calls out README run instructions as "an explicit submission requirement and
 it will be tested" — so it needs to actually work, not just read plausibly.
