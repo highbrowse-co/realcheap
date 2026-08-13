@@ -1,0 +1,66 @@
+{
+  "id": "EWGGB-V2G64-INS",
+  "status": "CONFIRMED",
+  "currency": "USD",
+  "total_price": 1321.95,
+  "total_price_formatted": "US$1321.95",
+  "partner_transaction_id": null,
+  "created_at": "2026-08-13T08:59:22.292595Z",
+  "pds_url": "https://xcover-staging.com/en-us/pds/EWGGB-V2G64-INS",
+  "security_token": "rwxuo-TkPF6-x4xRJ-COC4H",
+  "quotes": [
+    {
+      "id": "d1017039-68ac-43cb-9885-2111cfbe421f",
+      "policy_start_date": "2026-08-13T00:00:00",
+      "policy_end_date": null,
+      "status": "CONFIRMED",
+      "price": 1321.95,
+      "price_formatted": "US$1321.95",
+      "policy": {
+        "policy_type": "product_insurance_offer_engine",
+        "policy_type_version": "1",
+        "policy_type_slug": "product_insurance_offer_engine_v1",
+        "policy_type_group_name": "retail",
+        "policy_name": "CSE Interview - Retail Product Protection (EU)",
+        "policy_code": "CSEINTPR",
+        "policy_version": "ca17d11d-4954-4466-a2af-9a038b088caa",
+        "underwriter": {
+          "name": "Acasta European Insurance Company Limited",
+          "disclaimer": "Acasta European Insurance Company Limited"
+        }
+      },
+      "tax": {
+        "total_tax": 38.5,
+        "total_amount_without_tax": 1283.45,
+        "total_tax_formatted": "US$38.50",
+        "total_amount_without_tax_formatted": "US$1283.45"
+      },
+      "commission": {
+        "partner_commission": 385.04,
+        "total_commission": 385.04,
+        "partner_commission_formatted": "US$385.04",
+        "total_commission_formatted": "US$385.04"
+      },
+      "can_be_cancelled": true,
+      "cancelled_at": null
+    }
+  ],
+  "coi": {
+    "url": "https://xcover-staging.com/en-us/coi/EWGGB-V2G64-INS?security_token=rwxuo-TkPF6-x4xRJ-COC4H",
+    "pdf": "https://xcover-staging.com/en-us/coi/EWGGB-V2G64-INS.pdf?security_token=rwxuo-TkPF6-x4xRJ-COC4H"
+  },
+  "policyholder": {
+    "first_name": "Jamie",
+    "last_name": "Rivera",
+    "email": "jamie.rivera@example.com",
+    "phone": "+14155550100",
+    "country": "US"
+  },
+  "total_tax": 38.5,
+  "total_tax_formatted": "US$38.50",
+  "total_premium": 1283.45,
+  "total_premium_formatted": "US$1283.45",
+  "fnol_link": "https://xcover-staging.com/en-us/account/claims/fnol?bookingID=EWGGB-V2G64-INS&security_token=rwxuo-TkPF6-x4xRJ-COC4H",
+  "cancel_link": "https://xcover-staging.com/en-us/cancel/EWGGB-V2G64-INS?security_token=rwxuo-TkPF6-x4xRJ-COC4H",
+  "fast_quote_id": "0c387dde-c67b-42da-bd7c-3520a1e78b13"
+}

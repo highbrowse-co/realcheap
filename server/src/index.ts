@@ -1,5 +1,8 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { fileURLToPath } from "node:url";
 import express from "express";
+
+config({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);

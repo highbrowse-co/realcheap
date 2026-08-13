@@ -1,5 +1,35 @@
 # Decisions
 
+### 2026-08-13 — Discovered E3CCM's offer schema and confirmed auth against the live sandbox
+Context: `context`'s schema for Create Offer is undocumented publicly (docs/OPEN-QUESTIONS.md
+#2), and the HMAC algorithm was ambiguous across doc pages (#1). Needed real answers before
+building the server routes and fixtures.
+Choice: probed the live sandbox directly (`server/scripts/probe-schema.ts`, kept as an `npm
+run probe -w server` dev tool rather than deleted, since it's a legitimate way to re-verify
+against a live partner config later). Iterated from an empty body through successive 422s to
+discover `context: { purchase_date, product: { retail_value, quantity } }`. This confirmed
+`E3CCM`'s sandbox runs a custom `cse-interview-retail` offer schema — a two-year/three-year
+extended-warranty product built specifically for this interview, not a generic public offer
+type (`policy_code: "CSEINTPR"`, underwriter "Acasta European Insurance Company Limited").
+Also confirmed SHA-512 is correct (request accepted, no 403) and that `quantity` measurably
+changes the rated price ($663.68 at qty 1 vs $1321.95 at qty 3, for the same $1200 retail
+value — not linear, some server-side rating curve, which is fine to leave as an API black box).
+Ran the full lifecycle live: create → confirm (opt-in) → booking `EWGGB-V2G64-INS`; a second
+create → opt-out (204, no body, as documented); cancellation both via preview→confirm and via
+immediate cancel with `refund_required:false`. Real, captured responses are now
+`fixtures/*.json` for MOCK_MODE, not invented shapes.
+Alternatives rejected: inventing a plausible `context` shape from the parcel-shipping vertical
+example — explicitly prohibited by hard constraint 2, and would have been wrong anyway (that
+vertical has no product/quantity/retail_value fields, since it's a different vertical).
+AI note: The `refund_required:false` test (scope item 6, duplicate-refund avoidance) came back
+inconclusive rather than confirming the field does what the docs implied — `refund_amount` in
+the cancel response was identical whether the flag was `false`, `true`, or omitted, because
+`E3CCM` has `xpay_refund_enabled:false` and `automatic_refund_by_xcore:false` (no payout
+mechanism wired up regardless of the flag). This is exactly the kind of finding that's tempting
+to paper over with a confident-sounding claim; recorded as inconclusive in OPEN-QUESTIONS.md
+#3 instead, since asserting the mechanism works based on identical-either-way output would have
+been the same mistake as guessing a field name outright.
+
 ### 2026-08-13 — HMAC-SHA512 signing implemented with an independently-computed test vector
 Context: CLAUDE.md requires the signing function to have a unit test against a known vector,
 since a subtle bug here breaks every call. Cover Genius's docs provide worked examples but no

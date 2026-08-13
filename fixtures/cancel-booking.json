@@ -1,0 +1,35 @@
+{
+  "_note": "Captured from a live sandbox call with refund_required:false, simulating RealCheap having already refunded the customer directly. See docs/OPEN-QUESTIONS.md #3 — refund_amount/total_refund came back identical whether refund_required was true, false, or omitted, because partner E3CCM has xpay_refund_enabled:false and automatic_refund_by_xcore:false (no payout mechanism wired up for this sandbox partner either way), so the field's effect on an actual payout couldn't be empirically confirmed here.",
+  "id": "3MDFV-CWSUL-INS",
+  "status": "CANCELLED",
+  "quotes": [
+    {
+      "id": "66ef5fdb-a100-4f8b-af2c-92f36d4d5917",
+      "policy_start_date": "2026-08-13T00:00:00Z",
+      "policy_cancellation_date": "2026-08-13T09:00:23.773837Z",
+      "policy_coolingoff_date": "2026-09-10T09:00:17.119538Z",
+      "status": "CANCELLED",
+      "price": 477.05,
+      "refund_value": 477.05,
+      "adjustment_fee": 324.21,
+      "cancelled_at": "2026-08-13T09:00:23.791466Z"
+    }
+  ],
+  "policyholder": {
+    "first_name": "Alex",
+    "last_name": "Chen",
+    "email": "alex.chen@example.com",
+    "phone": "+14155550111",
+    "country": "US"
+  },
+  "total_price": 0.0,
+  "total_price_formatted": "US$0.00",
+  "total_refund": 477.05,
+  "total_refund_formatted": "US$477.05",
+  "total_tax": 0.0,
+  "total_premium": 0.0,
+  "currency": "USD",
+  "cancellation_id": null,
+  "refund_amount": 477.05,
+  "refund_amount_formatted": "US$477.05"
+}

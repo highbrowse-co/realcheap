@@ -1,0 +1,4 @@
+{
+  "_note": "Opt-out Offer returns HTTP 204 No Content with an empty body on the real API — confirmed against the live sandbox. This file exists only so the MOCK_MODE loader has a consistent fixture path per endpoint; its content is never sent as a response body.",
+  "status": 204
+}
