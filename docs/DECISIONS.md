@@ -1,5 +1,18 @@
 # Decisions
 
+### 2026-08-13 — README.md, verified against an actual clean clone
+Context: CLAUDE.md calls out README run instructions as "an explicit submission requirement and
+it will be tested" — so it needs to actually work, not just read plausibly.
+Choice: `git clone` → `npm install` → `cp .env.example .env` → `npm run dev`, with MOCK_MODE
+explained as the reason it works with zero real credentials out of the box. Also documented
+`server/scripts/probe-schema.ts` as a reusable tool (not just a one-off), since a panelist
+asking "how did you find the schema" deserves a runnable answer, not just a description.
+Verification: actually ran `git clone` of the local repo into `/tmp` and walked through the
+README's exact commands against that clean checkout — not just re-reading the steps. First
+attempt failed instructively: cloned before committing README.md itself, so the clone didn't
+have it — a reminder that "I wrote a file" and "the file is verifiable from a clean clone" are
+different claims, and only the second one satisfies this constraint.
+
 ### 2026-08-13 — docs/ARCHITECTURE.md for the explicitly out-of-scope items
 Context: CLAUDE.md lists four things to give "an architecture diagram and a verbal answer, not
 code" — the eligibility rules engine, the claims webhook receiver, settlement/reconciliation,
