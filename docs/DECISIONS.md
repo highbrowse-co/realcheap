@@ -1,5 +1,24 @@
 # Decisions
 
+### 2026-08-13 — HMAC-SHA512 signing implemented with an independently-computed test vector
+Context: CLAUDE.md requires the signing function to have a unit test against a known vector,
+since a subtle bug here breaks every call. Cover Genius's docs provide worked examples but no
+official test vector to assert against.
+Choice: implemented `signDate`/`buildAuthorizationHeader` per `authentication.md` exactly —
+sign the literal string `"date: {date}"` with HMAC-SHA512, base64 (strict RFC 4648), then
+URL-encode. For the test vector, computed the HMAC independently via `openssl dgst -sha512
+-hmac` on the command line (not via Node, so the test isn't just asserting the codebase agrees
+with itself), then hand-verified the URL-encoding step separately.
+Alternatives rejected: asserting only "signature is a non-empty string" (would not catch a
+wrong algorithm, wrong signed-string format, or a URL-safe-base64 bug — exactly the failure
+mode the docs warn about: "some languages will URL safe base64 encode... this will cause a
+'Signature string does not match!' error").
+AI note: Model wrote `signing.ts` and the test from the authentication.md excerpt. First draft
+of `rfc822Date` included a no-op `.replace("GMT", "GMT")` that did nothing — caught on re-read
+before commit and removed rather than left as dead code. The OpenSSL vector was generated and
+cross-checked by hand before being pasted into the test, specifically so the test has an
+authority independent of the implementation it's checking.
+
 ### 2026-08-13 — Logged two doc ambiguities before writing any integration code
 Context: CLAUDE.md hard constraint 3 requires stopping and recording ambiguities in
 `docs/OPEN-QUESTIONS.md` rather than guessing. Two were found while reading the partner docs:
