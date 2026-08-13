@@ -5,6 +5,8 @@
     "rootDir": "src",
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "noEmit": true
   },
   "include": ["src"]

@@ -1,5 +1,47 @@
 # Decisions
 
+### 2026-08-13 — Web checkout UI, and a real bug caught by driving it in a browser
+Context: needed the checkout flow CLAUDE.md describes — product + market/quantity selection,
+protection offer, opt-in/decline, Inspector, cancellation demo — as a single-page app talking
+only to the `/api` proxy (never XCover directly, never touching credentials).
+Choice: one `App.tsx` holding flow state (`offer`, `decision`, `booking`, `cancellation`, an
+ordered list of Inspector `entries`) rather than a router or state library — it's a single
+linear checkout flow, and CLAUDE.md explicitly excludes styling/architecture beyond what's
+needed for legibility. Offer fetching is button-triggered, not an automatic effect on
+market/quantity change, so every XCover call is a deliberate, visible user action reflected in
+the Inspector — matches the "Inspector is a first-class feature" requirement better than a
+debounced auto-fetch would. Policyholder fields are pre-filled but editable, since the panel
+scope doesn't include auth/persistence and a blank form add friction without adding anything to
+demo.
+Verification: no browser available directly, so used a throwaway Playwright script (not part of
+the repo — scratchpad only) to actually launch Chromium, click through both the opt-in and
+decline paths across two markets, and check `console --errors`. This caught a real bug that
+reading the code would not have: **Opt-out Offer's route mirrored XCover's `204` status onto our
+own proxy response** (`res.status(capture.status).json(...)`). A 204 response must have no body
+per HTTP spec, and Node strips it even when you call `.json()` on it — so the frontend's
+`postJson` got an empty body where it expected `{result, capture}` and crashed with
+`SyntaxError: Unexpected end of JSON input`. Fixed by decoupling the two: the proxy's own HTTP
+status now always reflects "did the proxy call succeed" (stays 200), while the real upstream
+status lives in `capture.status`, which the Inspector reads directly. Re-verified live (not just
+mocked) that a real XCover 204 now correctly reaches the frontend inside a 200-wrapped envelope.
+Also noted, not fixed: in MOCK_MODE, the Create Offer response is a single static fixture, so
+switching markets changes the *request* correctly (visible in Inspector) but the mocked
+*response* still shows USD regardless of the market selected. This is an inherent limitation of
+a hand-recorded fixture, not a bug — building a fixture that dynamically reflects arbitrary
+market input would mean re-implementing XCover's rating logic client-side, which is exactly the
+"real-time rules engine" CLAUDE.md puts out of scope. Live mode (`MOCK_MODE=false`) doesn't have
+this limitation.
+Alternatives rejected: mirroring upstream status by only special-casing 204 (e.g. `res.sendStatus(204)`
+when capture.status===204, res.status(capture.status).json(...) otherwise) — rejected because it
+would have made the Inspector unable to show the opt-out call's capture data at all (no body =
+no way to send the `capture` object to the frontend for that one endpoint), which defeats the
+entire point of the Inspector being able to show every call.
+AI note: The bug above is a good example of why "read the code" isn't enough verification for
+UI work — the TypeScript compiler, ESLint, and even the server's own MOCK_MODE curl tests
+(task 5/6) all passed with this bug present, because none of them exercised the actual
+browser-side fetch/JSON-parse path against a real 204. Only driving the real checkout flow in a
+browser surfaced it.
+
 ### 2026-08-13 — Server proxy: per-endpoint client functions, MOCK_MODE folded in rather than layered on top
 Context: needed the Express routes (create/confirm/opt-out offers, cancel bookings) plus the
 MOCK_MODE fixture switch (hard constraint 4) and the Inspector's request/response capture
