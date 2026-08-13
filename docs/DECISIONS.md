@@ -1,5 +1,25 @@
 # Decisions
 
+### 2026-08-13 — docs/ARCHITECTURE.md for the explicitly out-of-scope items
+Context: CLAUDE.md lists four things to give "an architecture diagram and a verbal answer, not
+code" — the eligibility rules engine, the claims webhook receiver, settlement/reconciliation,
+and auth/persistence/order management.
+Choice: one doc with a Mermaid flowchart of what's actually built (browser → proxy → XCover,
+with the MOCK_MODE fixture branch shown explicitly) and a sequence diagram of the real request
+flow, then a section per out-of-scope item explaining what it would do, why it's out of scope
+for *this* prototype specifically (not scope in general), and where it would plug into the
+existing pieces. The webhook section also gets a small sequence diagram since "where does
+verification/idempotency/the booking-ID mapping happen" is exactly the kind of question a
+technical panel would ask and a diagram answers faster than prose.
+Alternatives rejected: a generic "this is out of scope" one-liner per item — CLAUDE.md asks for
+enough to answer panel questions verbally, which means the reasoning has to actually be present,
+not just the conclusion.
+AI note: Mermaid diagrams are plain text in the markdown file, so nothing to verify by running
+code here — verified by re-reading each diagram against the actual route/field names already
+confirmed live (e.g. `partner.transaction_id`, `commission.partner_commission` are real fields
+from the captured fixtures, not invented ones, since the settlement section references them as
+where reconciliation would hook in).
+
 ### 2026-08-13 — Web checkout UI, and a real bug caught by driving it in a browser
 Context: needed the checkout flow CLAUDE.md describes — product + market/quantity selection,
 protection offer, opt-in/decline, Inspector, cancellation demo — as a single-page app talking
