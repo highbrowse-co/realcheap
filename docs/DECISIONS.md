@@ -1,5 +1,34 @@
 # Decisions
 
+### 2026-08-13 — Server proxy: per-endpoint client functions, MOCK_MODE folded in rather than layered on top
+Context: needed the Express routes (create/confirm/opt-out offers, cancel bookings) plus the
+MOCK_MODE fixture switch (hard constraint 4) and the Inspector's request/response capture
+(architecture requirement) all at once, now that the real schema was known.
+Choice: `xcoverClient.ts` exports one function per XCover operation (`createOffer`,
+`confirmOffer`, `optOutOffer`, `cancelBooking`), each a 3-line `mockMode ? mocked(...) :
+request(...)` branch, rather than a generic path-matching dispatcher. Considered a table-driven
+approach (map of regex → fixture name) first but rejected it — CLAUDE.md prefers boring
+explicit code over clever abstraction, and four short functions are easier to read than one
+regex table. Both `request` (live) and `mocked` (fixture) return the same `{data, capture}`
+shape so routes don't care which path was taken. Headers are redacted in the capture object
+for *both* modes (mock mode fabricates a plausible-looking redacted header set) so the
+Inspector panel looks and behaves identically regardless of MOCK_MODE — the panel shouldn't be
+the tell that you're in mock mode. Routes mirror the upstream HTTP status (`res.status(capture.status)`)
+rather than always returning 200, so a 422 from XCover surfaces as a 422 from our own API too.
+Alternatives rejected: a single generic `callXCover(method, path, body)` with fixture lookup
+by regex-matched path — more DRY but more indirect; explicit per-operation functions read
+top-to-bottom without needing to mentally execute a matcher.
+AI note: Model wrote the client, types, and routes from the real captured schema (previous
+decision entry) — no field names invented. Caught one real mismatch while wiring `package.json`:
+generated `@types/express@^5.0.0` against `express@^4.21.2` (a version-mismatched types
+package, which would have produced confusing incorrect-overload errors down the line rather
+than an obvious failure) — corrected to `@types/express@^4.17.21` before it caused problems.
+Verified the whole thing by actually running the server in both `MOCK_MODE=true` and
+`MOCK_MODE=false` and curling all four routes, not just by reading the code: mock mode returns
+the captured fixtures with a correctly-empty-body 204 for opt-out; live mode created a real
+offer against the sandbox and the capture object showed the API key/signature genuinely
+redacted (`45Bc...a6b0`, not the full key).
+
 ### 2026-08-13 — Discovered E3CCM's offer schema and confirmed auth against the live sandbox
 Context: `context`'s schema for Create Offer is undocumented publicly (docs/OPEN-QUESTIONS.md
 #2), and the HMAC algorithm was ambiguous across doc pages (#1). Needed real answers before
