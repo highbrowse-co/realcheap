@@ -85,3 +85,52 @@ honest that its actual effect on payout couldn't be confirmed against this sandb
 when a partner *does* have `xpay_refund_enabled: true`, or does it only affect internal
 reconciliation/reporting? Is there a sandbox partner config with automatic refund enabled to
 test against?
+
+## 4. Opt Out Offer does not reject an already-confirmed offer
+
+Found during the Session 1.5 capability probe (2026-08-15;
+`docs/SANDBOX-CAPABILITIES.md` Probe 5). Called `POST offers/{id}/opt_out/` on an `offer_id`
+that had already been Confirmed (booked) in the same run. Expected a 4xx (the offer's already
+been decided one way). Got `204 No Content` — the same success response as opting out a
+never-touched offer. Reproduced twice: once manually, once via the Postman collection under
+Newman (`postman/xcover-realcheap.postman_collection.json`, "Opt Out Offer (Decline)").
+
+**Why this matters**: the response body is empty either way, so there's no way to tell from the
+API response whether opt-out on an already-confirmed offer silently no-ops, actually reverses
+the booking, or leaves some inconsistent state. RealCheap's frontend already only calls opt-out
+from a state where no confirm has happened (a single linear checkout flow — see
+`docs/DECISIONS.md`, "Web checkout UI" entry), so this can't be triggered by the built prototype
+today, but it means the API itself isn't a safety net if a future integration called both.
+
+**Ask Cover Genius directly**: what does opt-out on an already-confirmed offer actually do
+server-side — no-op, reversal, or something else? Should partners guard against calling it
+post-confirm themselves, or is this expected to be safe/idempotent by design?
+
+## 5. Italy prices its 3-year plan higher than its 2-year plan; every other market is the reverse
+
+Found during the Session 1.5 market sweep (`docs/SANDBOX-CAPABILITIES.md` Probe 3). Same
+`retail_value`/`quantity`/`purchase_date` quoted for all 7 markets: in every market except IT,
+the 3-year plan is cheaper than the 2-year plan (as you'd expect — more time to spread the
+premium). In IT it's the other way around (€360.44 for 3yr vs €336.77 for 2yr,
+`fixtures/probe/market-IT.json`). Not investigated further — could be a real Italy-specific
+underwriting input or a sandbox data quirk for this offer config.
+
+**Ask Cover Genius directly**: is the IT 3yr > 2yr pricing intentional (a real rating input for
+that market), or a configuration issue in this sandbox's `cse-interview-retail` offer config?
+
+## To send to Cover Genius
+
+- Is the `authentication.md` SHA-512 guidance authoritative, or does the "HMAC-SHA256" wording
+  on the Create/Confirm Offer reference pages apply to some partners/configs? (#1)
+- Is there a document describing `E3CCM`'s `cse-interview-retail` offer schema and its rating
+  curve, so this doesn't have to be reverse-engineered from 422s again? (#2)
+- Does `refund_required: false` on Cancel Booking actually suppress an XPay payout for a partner
+  with `xpay_refund_enabled: true`? Is there a sandbox partner with that enabled to test against?
+  (#3)
+- Does Opt Out Offer on an already-confirmed offer do anything server-side, and should partners
+  guard against calling it post-confirm? (#4)
+- Is IT's 3yr-more-expensive-than-2yr pricing intentional, or a config issue in this offer
+  config? (#5)
+
+Kept short on purpose — everything else needed for the build was answered empirically against
+the live sandbox (see `docs/SANDBOX-CAPABILITIES.md`).

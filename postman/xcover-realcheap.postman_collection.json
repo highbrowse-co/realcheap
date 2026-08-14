@@ -1,0 +1,303 @@
+{
+  "info": {
+    "_postman_id": "b8b6f3b0-6b21-4e1e-9c1a-c9d1e6a2f001",
+    "name": "XCover RealCheap (Sandbox)",
+    "description": "Offers/Bookings lifecycle against Cover Genius's XCover sandbox for partner E3CCM's `cse-interview-retail` offer schema (RealCheap CSE interview prototype). HMAC-SHA512 signing is done once, at the collection level, in the pre-request script — see that script's comments for the exact construction, which matches server/src/signing.ts in the RealCheap repo and is documented in docs/API-NOTES.md.\n\nRun order for a clean pass through the lifecycle: Create Offer -> Confirm Offer (Opt In) -> Opt Out Offer (Decline) -> Cancel Booking (Preview) -> Cancel Booking (Confirm) — verified end-to-end via Newman, all 5 requests pass in one run against the live sandbox. Opt Out after Confirm is included deliberately: it also returns 204 rather than rejecting an already-confirmed offer, which was not the expected behavior going in — see that request's description.\n\nImport the companion `xcover-realcheap.postman_environment.example.json`, duplicate it, rename, and fill in `xcover_api_key` / `xcover_api_secret` with real sandbox credentials. Never commit the filled-in environment file.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// XCover HMAC-SHA512 signing (offers/api/authentication.md), confirmed against",
+          "// the live sandbox. Sign the literal string \"date: {date}\" with HMAC-SHA512,",
+          "// base64-encode (STRICT RFC 4648 — CryptoJS.enc.Base64 is strict by default,",
+          "// not the URL-safe variant, which matters: URL-safe base64 here produces a",
+          "// signature XCover rejects), then URL-encode the base64 string for the header.",
+          "const date = new Date().toUTCString();",
+          "const apiKey = pm.environment.get('xcover_api_key');",
+          "const secret = pm.environment.get('xcover_api_secret');",
+          "",
+          "const digest = CryptoJS.HmacSHA512(`date: ${date}`, secret).toString(CryptoJS.enc.Base64);",
+          "const signature = encodeURIComponent(digest);",
+          "",
+          "pm.request.headers.upsert({ key: 'Date', value: date });",
+          "pm.request.headers.upsert({ key: 'X-Api-Key', value: apiKey });",
+          "pm.request.headers.upsert({",
+          "  key: 'Authorization',",
+          "  value: `Signature keyId=\"${apiKey}\",algorithm=\"hmac-sha512\",signature=\"${signature}\"`",
+          "});",
+          "pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Offers",
+      "item": [
+        {
+          "name": "Create Offer",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": {\n    \"currency\": \"{{market_currency}}\",\n    \"language\": \"{{market_language}}\",\n    \"country\": \"{{market_country}}\"\n  },\n  \"partner\": {},\n  \"context\": {\n    \"purchase_date\": \"{{purchase_date}}\",\n    \"product\": {\n      \"retail_value\": {{retail_value}},\n      \"quantity\": {{quantity}}\n    }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", ""]
+            },
+            "description": "Quotes both the 2-year and 3-year cse-interview-retail products for the given market/quantity. `market_currency`/`market_country` drive which of the 7 target markets is quoted; `retail_value`/`quantity` drive rating."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('offer_id', body.id);",
+                  "  if (body.products && body.products.length > 0) {",
+                  "    pm.environment.set('quote_id', body.products[0].id);",
+                  "  }",
+                  "  console.log('offer_id ->', body.id, ' quote_id (2yr plan) ->', body.products?.[0]?.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm Offer (Opt In)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quotes\": [ { \"id\": \"{{quote_id}}\" } ],\n  \"policyholder\": {\n    \"first_name\": \"{{policyholder_first_name}}\",\n    \"last_name\": \"{{policyholder_last_name}}\",\n    \"email\": \"{{policyholder_email}}\",\n    \"phone\": \"{{policyholder_phone}}\",\n    \"country\": \"{{market_country}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/{{offer_id}}/confirm/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", "{{offer_id}}", "confirm", ""]
+            },
+            "description": "Opt-in path. Requires offer_id/quote_id set by Create Offer in this run. Not idempotent: confirming the same offer_id twice returns 422 'Booking already exists for fast_quote_id ...' rather than creating a second policy — run Create Offer again first if you need a new booking."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('booking_id', body.id);",
+                  "  console.log('booking_id ->', body.id, ' status ->', body.status);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Opt Out Offer (Decline)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/{{offer_id}}/opt_out/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", "{{offer_id}}", "opt_out", ""]
+            },
+            "description": "Decline path. Returns 204 No Content on success (no response body) — confirmed real behavior. Surprising, empirically-confirmed finding: calling this on an offer_id that was already Confirmed (booked) in the same run also returns 204 — XCover does not reject opt-out against an already-confirmed offer. What state that leaves the booking in server-side is not observable from this response alone; see docs/OPEN-QUESTIONS.md."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204, empty body', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "  pm.expect(pm.response.text()).to.equal('');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Bookings",
+      "item": [
+        {
+          "name": "Cancel Booking (Preview)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preview\": true,\n  \"quotes\": [ { \"id\": \"{{quote_id}}\" } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/bookings/{{booking_id}}/cancel",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["bookings", "{{booking_id}}", "cancel"]
+            },
+            "description": "preview:true returns the refund/cancellation figures without actually cancelling — confirmed empirically: the booking was still cancellable by a real call afterwards. Requires booking_id set by Confirm Offer in this run."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Booking (Confirm)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refund_required\": false,\n  \"quotes\": [ { \"id\": \"{{quote_id}}\", \"reason_for_cancellation\": \"Postman collection test\" } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/bookings/{{booking_id}}/cancel",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["bookings", "{{booking_id}}", "cancel"]
+            },
+            "description": "Actually cancels. `refund_required: false` is how RealCheap tells XCover it already refunded the customer directly, to avoid a duplicate payout — see docs/OPEN-QUESTIONS.md #3 for why this partner's sandbox config (xpay_refund_enabled: false) can't fully prove the payout-suppression effect. Cancellation is not reversible: a second cancel on the same booking returns 422 'Status change not allowed for QuotePackage in status CANCELLED'."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, status CANCELLED', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql('CANCELLED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Error shapes (reference)",
+      "item": [
+        {
+          "name": "Confirm with invalid offer id -> 404",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quotes\": [ { \"id\": \"00000000-0000-0000-0000-000000000000\" } ],\n  \"policyholder\": {\n    \"first_name\": \"{{policyholder_first_name}}\",\n    \"last_name\": \"{{policyholder_last_name}}\",\n    \"email\": \"{{policyholder_email}}\",\n    \"phone\": \"{{policyholder_phone}}\",\n    \"country\": \"{{market_country}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/00000000-0000-0000-0000-000000000000/confirm/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", "00000000-0000-0000-0000-000000000000", "confirm", ""]
+            },
+            "description": "Real captured response: 404 { \"type\": \"api_error\", \"message\": \"Quote package does not exist\" }. See fixtures/probe/err-invalid-offer-id.json."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Offer with missing retail_value -> 422",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": { \"currency\": \"{{market_currency}}\", \"language\": \"{{market_language}}\", \"country\": \"{{market_country}}\" },\n  \"partner\": {},\n  \"context\": {\n    \"purchase_date\": \"{{purchase_date}}\",\n    \"product\": { \"quantity\": {{quantity}} }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", ""]
+            },
+            "description": "Real captured response: 422 offer_quote_generation_failed, \"retail_value_base calculation failed. Expression: to_policy_currency(retail_value)\". See fixtures/probe/err-missing-field.json."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Offer with bad signature -> 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": { \"currency\": \"{{market_currency}}\", \"language\": \"{{market_language}}\", \"country\": \"{{market_country}}\" },\n  \"partner\": {},\n  \"context\": {\n    \"purchase_date\": \"{{purchase_date}}\",\n    \"product\": { \"retail_value\": {{retail_value}}, \"quantity\": {{quantity}} }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", ""]
+            },
+            "description": "Request-level pre-request script re-signs with a deliberately wrong secret, overriding the collection-level signature. Real captured response: 403 { \"type\": \"auth_error\", \"message\": \"You do not have permission to access this url\" }. See fixtures/probe/err-bad-signature.json."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Overrides the collection-level Authorization header with a signature",
+                  "// computed from a wrong secret, to demonstrate the bad-signature error shape.",
+                  "const date = new Date().toUTCString();",
+                  "const apiKey = pm.environment.get('xcover_api_key');",
+                  "const wrongSecret = 'this-is-not-the-real-secret';",
+                  "const digest = CryptoJS.HmacSHA512(`date: ${date}`, wrongSecret).toString(CryptoJS.enc.Base64);",
+                  "const signature = encodeURIComponent(digest);",
+                  "pm.request.headers.upsert({ key: 'Date', value: date });",
+                  "pm.request.headers.upsert({",
+                  "  key: 'Authorization',",
+                  "  value: `Signature keyId=\"${apiKey}\",algorithm=\"hmac-sha512\",signature=\"${signature}\"`",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

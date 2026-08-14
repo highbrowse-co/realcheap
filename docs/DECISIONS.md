@@ -1,5 +1,46 @@
 # Decisions
 
+### 2026-08-15 — Session 1.5 sandbox capability probe, run retroactively against an already-built app
+Context: the Session 1.5 probe prompt is written to run *before* any application code exists —
+it explicitly says "do not build any application code this session." By the time it was run,
+`/server`, `/web`, fixtures, and all four docs already existed (2026-08-13 commits). Rather than
+silently ignore the mismatch, it's recorded here: most of Probes 1/2/4/5(partial) were already
+answered empirically during the build and are cited from `docs/OPEN-QUESTIONS.md` /
+`docs/DECISIONS.md` rather than re-run from scratch. This session's actual new work closed the
+real gaps: the other 6 markets (only US had been tested), quote TTL/expiry, idempotent
+re-confirm, cancellation reversibility, and real captured failure shapes — plus the two
+deliverables that didn't exist yet: the Postman collection and `docs/SANDBOX-CAPABILITIES.md`.
+No application code (`/server`, `/web`) was touched.
+Choice: throwaway probe script at `scripts/probe/probe.ts` (root level, separate from the
+committed `server/scripts/probe-schema.ts` dev tool — this one reimplements signing inline with
+zero dependency on the app's build graph, matching the brief's "throwaway" framing), dumping
+every captured request/response to `fixtures/probe/`. ~30 live calls made against
+`api.xcover-staging.com`; all test bookings created during probing were cancelled afterward to
+leave the sandbox clean.
+Two real findings surfaced that weren't expected going in: (1) confirming the same offer twice
+returns a 422 referencing the existing booking ID rather than silently succeeding or creating a
+duplicate — confirms the build's existing double-click handling assumption was right without
+ever having tested it; (2) Opt Out Offer returns 204 even when called on an offer that was
+already Confirmed in the same run — not expected, reproduced twice (manually and via Newman),
+now flagged in `docs/OPEN-QUESTIONS.md` #4 as a question for Cover Genius rather than a build
+change, since the built checkout's linear flow can't trigger this sequence today.
+Alternatives rejected: re-running Probes 1/2/4 from a blank slate to match the letter of the
+"before the build" framing — rejected as wasted live-API calls against findings that were
+already correct and already cited with evidence; the honest move was to flag the sequencing
+mismatch (done above and to the user directly) and spend the session on the actual gaps.
+AI note: the Postman collection's first draft asserted (in a request description) that "an
+already-confirmed offer cannot be opted out" — a plausible-sounding assumption written before
+testing it. Running the collection end-to-end via Newman falsified that assumption immediately
+(the Opt Out request returned 204 against an already-confirmed offer_id in the same run) — caught
+by actually executing the artifact being built, not by re-reading it, which is exactly the kind
+of thing CLAUDE.md's hard constraint 2 (never invent behavior, verify) is warning against. The
+description was corrected and the finding promoted into `docs/OPEN-QUESTIONS.md` #4. Also caught:
+`probe.ts`'s save-to-file path did `JSON.parse(body)` on the raw request body for the saved
+record, which crashed (uncaught) on the deliberately-malformed-JSON error probe — the response
+itself printed fine to stdout, but the file never got written. Worked around by hand-writing that
+one capture (`fixtures/probe/err-malformed.json`) rather than fixing the throwaway script, since
+it's not reused elsewhere and fixing it wasn't worth the scope.
+
 ### 2026-08-13 — Excluded the assignment brief PDF from version control
 Context: the original case-study brief (`CSE Interview Candidate Case Study - Retail China.pdf`)
 was sitting in the repo root, predating this session's work.

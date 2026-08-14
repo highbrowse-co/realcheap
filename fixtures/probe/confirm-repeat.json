@@ -1,0 +1,33 @@
+{
+  "method": "POST",
+  "url": "https://api.xcover-staging.com/xcover/partners/E3CCM/offers/bfdc0a38-8ac0-42a8-9cd5-d793b36e6988/confirm/",
+  "requestHeaders": {
+    "Content-Type": "application/json",
+    "Date": "Fri, 14 Aug 2026 22:26:00 GMT",
+    "X-Api-Key": "45Bc...a6b0",
+    "Authorization": "Signature keyId=\"45Bc...a6b0\",algorithm=\"hmac-sha512\",signature=\"***redacted***\""
+  },
+  "requestBody": {
+    "quotes": [
+      {
+        "id": "4cf544d3-e8f4-4888-b60a-b4162f32ca9c"
+      }
+    ],
+    "policyholder": {
+      "first_name": "Sam",
+      "last_name": "Probe",
+      "email": "sam.probe@example.com",
+      "phone": "+14155550199",
+      "country": "US"
+    }
+  },
+  "status": 422,
+  "latencyMs": 797,
+  "responseBody": {
+    "type": "validation_error",
+    "message": "An API error occurred.",
+    "errors": [
+      "Booking already exists for fast_quote_id bfdc0a38-8ac0-42a8-9cd5-d793b36e6988. INS number: Z9MMW-DTX22-INS"
+    ]
+  }
+}

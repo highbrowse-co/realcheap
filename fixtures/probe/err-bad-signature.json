@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "url": "https://api.xcover-staging.com/xcover/partners/E3CCM/offers/",
+  "status": 403,
+  "responseBody": {
+    "type": "auth_error",
+    "message": "You do not have permission to access this url"
+  },
+  "_note": "Same request as market-US.json but signed with a deliberately wrong secret to capture the bad-signature error shape."
+}

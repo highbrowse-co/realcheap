@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "url": "https://api.xcover-staging.com/xcover/partners/E3CCM/offers/",
+  "requestBody": "{\"not_json\"",
+  "_note": "Deliberately truncated/invalid JSON body — not written by probe.ts's normal save path (that path does JSON.parse(body) on the request for the saved record, which throws on invalid JSON by design; captured manually here instead).",
+  "status": 400,
+  "responseBody": {
+    "type": "validation_error",
+    "message": "JSON parse error - unexpected end of data: line 1 column 12 (char 11)"
+  }
+}

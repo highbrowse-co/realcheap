@@ -1,0 +1,45 @@
+{
+  "method": "POST",
+  "url": "https://api.xcover-staging.com/xcover/partners/E3CCM/offers/",
+  "requestHeaders": {
+    "Content-Type": "application/json",
+    "Date": "Fri, 14 Aug 2026 22:27:31 GMT",
+    "X-Api-Key": "45Bc...a6b0",
+    "Authorization": "Signature keyId=\"45Bc...a6b0\",algorithm=\"hmac-sha512\",signature=\"***redacted***\""
+  },
+  "requestBody": {
+    "customer": {
+      "currency": "USD",
+      "language": "en",
+      "country": "US"
+    },
+    "partner": {},
+    "context": {
+      "purchase_date": "2026-08-15",
+      "product": {
+        "quantity": 1
+      }
+    }
+  },
+  "status": 422,
+  "latencyMs": 1979,
+  "responseBody": {
+    "type": "validation_error",
+    "message": "Offer could not be created due to quote generation errors",
+    "error_id": "337668e5-3fb6-4cf8-a7ca-e2a64b06a512",
+    "code": "offer_quote_generation_failed",
+    "errors": {
+      "0": {
+        "message": "retail_value_base calculation failed. Expression: to_policy_currency(retail_value)",
+        "type": "quote_creation_failure"
+      },
+      "1": {
+        "message": "retail_value_base calculation failed. Expression: to_policy_currency(retail_value)",
+        "type": "quote_creation_failure"
+      },
+      "metadata": {
+        "selected_offer_id": "aeef88f5-c254-4397-b1e2-734aa29b8afc"
+      }
+    }
+  }
+}

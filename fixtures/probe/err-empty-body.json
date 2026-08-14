@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "url": "https://api.xcover-staging.com/xcover/partners/E3CCM/offers/",
+  "requestHeaders": {
+    "Content-Type": "application/json",
+    "Date": "Fri, 14 Aug 2026 22:27:30 GMT",
+    "X-Api-Key": "45Bc...a6b0",
+    "Authorization": "Signature keyId=\"45Bc...a6b0\",algorithm=\"hmac-sha512\",signature=\"***redacted***\""
+  },
+  "requestBody": {},
+  "status": 422,
+  "latencyMs": 1068,
+  "responseBody": {
+    "type": "validation_error",
+    "message": "An API error occurred.",
+    "errors": {
+      "non_field_errors": [
+        "'customer' is a required property",
+        "'partner' is a required property",
+        "'context' is a required property"
+      ]
+    }
+  }
+}
