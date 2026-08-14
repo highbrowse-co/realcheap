@@ -15,28 +15,49 @@ non-JSON body), the frontend shows the customer a working "continue without prot
 Create Offer fails for any reason, and a defense-in-depth error boundary/handler exists at both
 the Express and React layers in case something else goes wrong. See "Failure handling" below.
 
-## What's built
+## What's built — and where the out-of-scope pieces would attach
+
+One diagram, meant to carry the whole story on its own in a presentation: the real integration
+(solid lines), the fail-open path, and the four out-of-scope items (dashed lines) at the exact
+point each would attach to what's actually built, not floating separately.
 
 ```mermaid
-flowchart LR
-    subgraph Browser
-        UI[React checkout<br/>ProductPage + Inspector]
-    end
-    subgraph "RealCheap server (Express/TS)"
-        Routes["/api/offers, /api/bookings"]
-        Client[xcoverClient.ts<br/>signing + capture]
-        Fixtures[(fixtures/*.json)]
-    end
-    subgraph "Cover Genius"
-        XCover[XCover sandbox<br/>api.xcover-staging.com]
+flowchart TB
+    subgraph Browser["Browser — no credentials, ever"]
+        UI["React checkout<br/>ProductPage + Inspector"]
     end
 
-    UI -- "fetch /api/... (no credentials)" --> Routes
+    subgraph Server["RealCheap server — Express/TS"]
+        Elig{{"SKU eligibility check<br/>(not built)"}}
+        Routes["/api/offers, /api/bookings<br/>always HTTP 200 —<br/>real status inside capture"]
+        Client["xcoverClient.ts<br/>HMAC-SHA512 signing + capture<br/>10s timeout, never throws"]
+        Fixtures[("fixtures/markets/*.json<br/>MOCK_MODE=true<br/>35 real recorded quotes")]
+        Orders[("Order store<br/>(not built)")]
+    end
+
+    subgraph XCoverSide["Cover Genius"]
+        XCover["XCover sandbox<br/>Create/Confirm/Opt-out/Cancel"]
+        Webhook{{"Claims webhook receiver<br/>(not built)"}}
+        Settle{{"Settlement job<br/>reads partner.transaction_id<br/>(not built)"}}
+    end
+
+    Elig -. "would gate: skip the<br/>offer call entirely" .-> Routes
+    UI -- "fetch /api/..." --> Routes
     Routes --> Client
     Client -- "MOCK_MODE=true" --> Fixtures
-    Client -- "MOCK_MODE=false, HMAC-signed" --> XCover
+    Client -- "MOCK_MODE=false, signed" --> XCover
     Client -- "{data, capture}" --> Routes
-    Routes -- "{offer/booking/cancellation, capture}" --> UI
+    Routes --> UI
+    Routes -. "would persist the<br/>opt-in/decline decision" .-> Orders
+
+    XCover -. "claim submitted/approved/paid" .-> Webhook
+    Webhook -. "update by booking id" .-> Orders
+
+    XCover -. "commission, premium" .-> Settle
+    Settle -. "diff against ledger" .-> Orders
+
+    Client -- "unreachable, timeout,<br/>or 4xx/5xx" --> FailOpen["Fail open:<br/>checkout completes,<br/>'Continue without protection'"]
+    FailOpen --> UI
 ```
 
 The API key and secret live only in `server/.env` (repo root `.env`, read via `config.ts`) and
@@ -44,36 +65,13 @@ are used only inside `xcoverClient.ts`. The browser never sees them — every he
 displays in the Inspector has already been redacted server-side before it leaves the process
 (see `redactHeaders` in `server/src/xcoverClient.ts`).
 
-## Request flow
-
-```mermaid
-sequenceDiagram
-    participant U as Customer (browser)
-    participant S as RealCheap server
-    participant X as XCover
-
-    U->>S: POST /api/offers (market, quantity)
-    S->>X: POST /partners/E3CCM/offers/ (signed)
-    X-->>S: 200 offer + products + content
-    S-->>U: {offer, capture}
-
-    alt Opts in
-        U->>S: POST /api/offers/:id/confirm (policyholder)
-        S->>X: POST .../confirm/ (signed)
-        X-->>S: 200 booking (CONFIRMED)
-        S-->>U: {booking, capture}
-    else Declines
-        U->>S: POST /api/offers/:id/opt-out
-        S->>X: POST .../opt_out/ (signed)
-        X-->>S: 204 No Content
-        S-->>U: {result: null, capture}
-    end
-
-    U->>S: POST /api/bookings/:id/cancel (refund_required)
-    S->>X: POST /partners/E3CCM/bookings/:id/cancel (signed)
-    X-->>S: 200 cancellation + refund figures
-    S-->>U: {cancellation, capture}
-```
+**The real lifecycle** the diagram's solid path represents: `POST /api/offers` (market +
+quantity) quotes both plans; the customer either confirms (`POST /api/offers/:id/confirm`,
+`200` `CONFIRMED` booking) or declines (`POST /api/offers/:id/opt-out`, `204` no body); a
+confirmed booking can later be cancelled (`POST /api/bookings/:id/cancel`, with
+`refund_required` reflecting whether RealCheap already refunded the customer directly). All
+four are signed identically by `xcoverClient.ts` and captured identically for the Inspector,
+live or mocked.
 
 ## Failure handling
 
@@ -133,26 +131,14 @@ engine would be a layer above that, filtering which line items ask for an offer 
 
 ### Webhook receiver for claim status
 
-```mermaid
-sequenceDiagram
-    participant X as XCover
-    participant W as RealCheap webhook endpoint
-    participant D as RealCheap order/claims store
-    participant C as Customer
-
-    X->>W: POST /webhooks/xcover/claims (signed event)
-    W->>W: verify signature, check idempotency key
-    W->>D: update claim status against booking id
-    D-->>C: notify (email/SMS) on status change
-    W-->>X: 200 OK
-```
-
-**Design**: a dedicated endpoint (not built) that Cover Genius would call on claim lifecycle
-events (submitted, approved, paid, denied). It would need: signature verification symmetric to
-the outbound HMAC scheme (or whatever XClaim's webhook auth turns out to be — unconfirmed,
-would need to ask Cover Genius, same as the two items in `docs/OPEN-QUESTIONS.md`), an
-idempotency check (webhooks can be redelivered), and a mapping from XCover's booking/quote ID
-back to RealCheap's own order ID to know which customer to notify.
+**Design**: a dedicated endpoint (not built — see it as `Webhook` in the diagram above) that
+Cover Genius would call on claim lifecycle events (submitted, approved, paid, denied): XCover
+signs and POSTs the event, the endpoint verifies the signature (symmetric to the outbound HMAC
+scheme, or whatever XClaim's webhook auth turns out to be — unconfirmed, would need to ask Cover
+Genius, same as the items already in `docs/OPEN-QUESTIONS.md`), checks an idempotency key
+(webhooks can be redelivered), maps XCover's booking/quote ID back to RealCheap's own order ID,
+updates the order store, and returns `200 OK`. The customer-facing notification (email/SMS) is a
+RealCheap concern downstream of that update, not XCover's.
 
 **Why out of scope**: requires a persistent order/claims store and a real notification channel,
 both explicitly excluded by CLAUDE.md ("Authentication, persistence, or anything resembling a

@@ -1,5 +1,38 @@
 # Decisions
 
+### 2026-08-15 — Phase 6: submission package (ARCHITECTURE rewrite, DEMO-SCRIPT, PANEL-QA)
+Context: this session's brief asks for a submission package distinct from the working
+prototype — a presentable architecture diagram, a rehearsable demo script with a stated fallback,
+and honest answers to the hardest questions the submission invites, then a final clean-clone
+re-verification.
+Choice: consolidated `docs/ARCHITECTURE.md`'s two diagrams (a flowchart and a separate sequence
+diagram) into one flowchart, per the brief's framing that it's "the single diagram permitted in
+the presentation" — solid lines for what's actually built, dashed lines for the four out-of-scope
+items at the exact point each would attach (an eligibility gate before the offer call, a webhook
+receiver and settlement job hanging off XCover's side, an order store neither currently writes
+to), plus the fail-open branch. Folded the webhook section's separate sequence diagram into prose
+so the doc has exactly one diagram total, matching the instruction literally rather than just in
+spirit. `docs/DEMO-SCRIPT.md`: a numbered click path with the point being made at each step
+stated explicitly (not just "click X"), real observed latencies from `docs/API-NOTES.md` for
+timing expectations, and a fallback section that doesn't require stopping the demo — `MOCK_MODE`
+now covers all 35 market×quantity combinations (Phase 5), so the fallback path shows real
+recorded numbers, not placeholder ones, and says so explicitly rather than relying on the
+Inspector's own label to disclose it. `docs/PANEL-QA.md`: fifteen questions, weighted toward the
+ones with an uncomfortable honest answer (the credential exposure is #1, ahead of the four topics
+Session 2's brief named by name) rather than softballs — a "hardest questions" doc that avoids the
+actual hardest question isn't useful to whoever reads it before the panel does.
+Re-verified README from a fresh clone one more time after all of the above (`npm install` → `npm
+run test` → `npm run lint` → `npm run dev` → health checks → a spot-check MOCK_MODE call against
+a fixture added in Phase 5, `IT` × quantity 4, confirming the expanded fixture set survived the
+clone) — not assumed still-correct just because it passed earlier in the session.
+Alternatives rejected: writing `PANEL-QA.md`'s answers to sound reassuring rather than accurate —
+rejected throughout this project on the same grounds CLAUDE.md states directly: an unbuilt
+feature or an unresolved ambiguity, honestly labeled, is a better answer than a confident-sounding
+one that doesn't hold up to a follow-up question from a former developer.
+AI note: no new code changed in this phase — pure documentation, verified by re-running the exact
+commands the docs describe (the clean clone, the lint/test suite) rather than trusting that
+describing them correctly meant they'd still pass.
+
 ### 2026-08-15 — Phase 5: adversarial review (blind subagent), one critical finding and three high-severity fixes
 Context: per this session's brief, spawned a fresh subagent with only the review brief and the
 repo path — no context from this session's own work, so it evaluated what exists, not what was

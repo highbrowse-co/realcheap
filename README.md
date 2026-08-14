@@ -2,9 +2,15 @@
 
 A prototype embedding Cover Genius's XCover protection into a mock checkout for **RealCheap**,
 a fictional marketplace selling discounted electronics across US, CA, GB, IT, FR, ES, DE. Built
-for a Cover Genius Client Solutions Engineer interview panel — see `CLAUDE.md` for the brief and
-`docs/DECISIONS.md` / `docs/OPEN-QUESTIONS.md` / `docs/ARCHITECTURE.md` for the reasoning behind
-what's here.
+for a Cover Genius Client Solutions Engineer interview panel — see `CLAUDE.md` for the brief.
+
+**Start here if you're reviewing this**: `docs/DEMO-SCRIPT.md` (the click path), `docs/PANEL-QA.md`
+(the hardest questions, answered honestly), `docs/CODE-TOUR.md` (what to read and in what order),
+`docs/WEAKEST-POINTS.md` (blunt, ranked). `docs/DECISIONS.md` and `docs/OPEN-QUESTIONS.md` are the
+running record of every non-obvious choice and every real ambiguity; `docs/ARCHITECTURE.md` has
+the one integration diagram; `docs/SANDBOX-CAPABILITIES.md` and `docs/API-NOTES.md` cover what
+this specific sandbox account can do and the exact signing construction; `docs/WHY.md` covers
+decisions a different engineer would reasonably have made differently.
 
 ## Requirements
 
@@ -72,13 +78,32 @@ npx tsx scripts/probe-schema.ts POST offers/ '{"customer":{"currency":"USD","lan
 ```
 
 Requires real credentials in `.env` regardless of `MOCK_MODE` (it always calls the live API
-directly, bypassing the mock switch).
+directly, bypassing the mock switch). `scripts/probe/probe.ts` at the repo root is the same
+pattern, used for the broader Session 1.5/Phase 3/5 capability probes — see its usage comment.
+
+## Postman collection
+
+`postman/xcover-realcheap.postman_collection.json` covers the full offer/booking lifecycle
+(create, confirm, opt-out, cancel), idempotency-key behavior, the two-step
+preview/confirm-cancellation flow, extended query params, a Runner-drivable market matrix, and
+reference requests for real captured error shapes — all HMAC-signed by a collection-level
+pre-request script. Import it plus `postman/xcover-realcheap.postman_environment.example.json`
+(duplicate, rename, fill in real credentials — never commit the filled-in copy; it's gitignored
+by the exact filename `xcover-realcheap.postman_environment.json`). Verified end-to-end via
+Newman against the live sandbox, not just imported and assumed correct.
 
 ## Project layout
 
 ```
-/server    Express + TypeScript. Signs and proxies XCover calls, captures request/response.
-/web       Vite + React. Mock RealCheap product page and checkout, with the Inspector panel.
-/fixtures  Real recorded sandbox responses, used in MOCK_MODE and by the fixture loader.
-/docs      DECISIONS.md, OPEN-QUESTIONS.md, ARCHITECTURE.md
+/server         Express + TypeScript. Signs and proxies XCover calls, captures request/response.
+/web            Vite + React. Mock RealCheap product page and checkout, with the Inspector panel.
+/fixtures       Real recorded sandbox responses — /markets is the 35-combination MOCK_MODE
+                matrix (7 markets x quantities 1-5); /probe is raw Session 1.5/Phase 3/5 captures.
+/postman        A Postman collection covering the full lifecycle plus idempotency, two-step
+                cancellation, and a Runner-drivable market matrix — verified via Newman.
+/scripts/probe  Throwaway script for re-probing the live sandbox directly (signs and calls
+                XCover, bypassing MOCK_MODE entirely).
+/docs           DECISIONS.md, OPEN-QUESTIONS.md, ARCHITECTURE.md, API-NOTES.md,
+                SANDBOX-CAPABILITIES.md, DEMO-SCRIPT.md, PANEL-QA.md, CODE-TOUR.md, WHY.md,
+                WEAKEST-POINTS.md
 ```
