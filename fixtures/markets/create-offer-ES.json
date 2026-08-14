@@ -1,0 +1,160 @@
+{
+  "id": "dada8e7a-e243-4f2c-8eb0-8b6dfe3e6da3",
+  "session_id": "4393f74f-0626-4336-945a-51876204b4d0",
+  "offer_config_id": "aeef88f5-c254-4397-b1e2-734aa29b8afc",
+  "offer_schema": "cse-interview-retail",
+  "currency": "EUR",
+  "products": [
+    {
+      "id": "c6db429b-f451-4ded-a823-6453501a6a19",
+      "product_config_id": "66d52e7c-67c2-43a3-a4a3-ffc8789ac959",
+      "name": "cse-interview-product-2y",
+      "type": null,
+      "schema_url": null,
+      "details": {
+        "policy_version_id": "ca17d11d-4954-4466-a2af-9a038b088caa",
+        "start_date": "2026-08-15T00:00:00",
+        "end_date": null,
+        "finance": {
+          "price": {
+            "total_amount": 616.42,
+            "total_amount_without_tax": 598.47,
+            "total_amount_min": null,
+            "total_amount_max": null,
+            "total_amount_formatted": "€616.42",
+            "total_amount_without_tax_formatted": "€598.47",
+            "total_amount_min_formatted": null,
+            "total_amount_max_formatted": null
+          },
+          "tax": {
+            "total_amount": 17.95,
+            "breakdown": [
+              {
+                "tax_amount": 17.95,
+                "tax_code": "Tax & Surcharge (label)",
+                "tax_amount_formatted": "€17.95"
+              }
+            ],
+            "total_amount_formatted": "€17.95"
+          },
+          "surcharge": {
+            "total_amount": null,
+            "total_amount_formatted": null
+          },
+          "commission": {
+            "total_amount": null,
+            "total_amount_formatted": null
+          }
+        },
+        "pds_url": "https://xcover-staging.com/en/pds/dada8e7a-e243-4f2c-8eb0-8b6dfe3e6da3?policy_type=product_insurance_offer_engine_v1",
+        "files": [],
+        "extra_fields": {},
+        "experiment": {},
+        "benefits": []
+      }
+    },
+    {
+      "id": "864a3aab-5cce-428d-beb1-a98777e834fb",
+      "product_config_id": "ae8803f9-99c1-4f66-8b2f-ad1d72e476df",
+      "name": "cse-interview-product-3y",
+      "type": null,
+      "schema_url": null,
+      "details": {
+        "policy_version_id": "ca17d11d-4954-4466-a2af-9a038b088caa",
+        "start_date": "2026-08-15T00:00:00",
+        "end_date": null,
+        "finance": {
+          "price": {
+            "total_amount": 500.44,
+            "total_amount_without_tax": 485.87,
+            "total_amount_min": null,
+            "total_amount_max": null,
+            "total_amount_formatted": "€500.44",
+            "total_amount_without_tax_formatted": "€485.87",
+            "total_amount_min_formatted": null,
+            "total_amount_max_formatted": null
+          },
+          "tax": {
+            "total_amount": 14.57,
+            "breakdown": [
+              {
+                "tax_amount": 14.57,
+                "tax_code": "Tax & Surcharge (label)",
+                "tax_amount_formatted": "€14.57"
+              }
+            ],
+            "total_amount_formatted": "€14.57"
+          },
+          "surcharge": {
+            "total_amount": null,
+            "total_amount_formatted": null
+          },
+          "commission": {
+            "total_amount": null,
+            "total_amount_formatted": null
+          }
+        },
+        "pds_url": "https://xcover-staging.com/en/pds/dada8e7a-e243-4f2c-8eb0-8b6dfe3e6da3?policy_type=product_insurance_offer_engine_v1",
+        "files": [],
+        "extra_fields": {},
+        "experiment": {},
+        "benefits": []
+      }
+    }
+  ],
+  "content": {
+    "schema_version": "content:1.0",
+    "locale": "en",
+    "slug": "cse-interview-retail-offer",
+    "title": "CSE Interview Retail Offer",
+    "extras": {
+      "Breakdowns": "Protects your new purchase against breakdowns and faults once the manufacturer’s warranty period is over.",
+      "Accidental Damage": "Covers issues not included in your manufacturer’s warranty, such as accidental damage or theft.",
+      "Cash Refund": "Get a replacement or a cash refund up to the full amount you originally paid for it."
+    },
+    "heading": "Back your buy with XCover protection",
+    "disclaimer": "By adding protection, I confirm that I have read the terms and conditions",
+    "price_unit": "",
+    "description": "",
+    "sub_heading": "N/A",
+    "negative_cta": "No thanks, I'll risk it",
+    "positive_cta": "Add protection",
+    "disclaimer_html": "<p data-block-key=\"aaqg8\">By adding protection, I confirm that I have read the terms and conditions</p>",
+    "required_message": "Please make a selection",
+    "credibility_message": "10,777 people protect their purchase each week",
+    "negative_cta_warning": "Are you sure you want to risk it",
+    "products": [
+      {
+        "id": "c6db429b-f451-4ded-a823-6453501a6a19",
+        "product_config_id": "66d52e7c-67c2-43a3-a4a3-ffc8789ac959",
+        "slug": "cse-interview-product-2-year",
+        "locale": "en",
+        "title": "2 Year Plan",
+        "benefits": {},
+        "disclaimer": "",
+        "exclusions": {},
+        "inclusions": {},
+        "description": "2 Year Plan",
+        "terms_cta_html": "",
+        "disclaimer_html": "",
+        "credibility_badge": ""
+      },
+      {
+        "id": "864a3aab-5cce-428d-beb1-a98777e834fb",
+        "product_config_id": "ae8803f9-99c1-4f66-8b2f-ad1d72e476df",
+        "slug": "cse-interview-product-3-year",
+        "locale": "en",
+        "title": "3 Year Plan",
+        "benefits": {},
+        "disclaimer": "",
+        "exclusions": {},
+        "inclusions": {},
+        "description": "3 Year Plan",
+        "terms_cta_html": "",
+        "disclaimer_html": "",
+        "credibility_badge": ""
+      }
+    ]
+  },
+  "errors": {}
+}

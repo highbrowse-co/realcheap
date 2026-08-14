@@ -1,5 +1,42 @@
 # Decisions
 
+### 2026-08-15 — Phase 2: MOCK_MODE fixture selection by market/quantity, replacing the single static fixture
+Context: the original `fixtures/create-offer.json` was one static capture, always returned
+regardless of request — a known, previously-documented limitation (2026-08-13 web-checkout
+entry). In a fallback demo (sandbox down, forced into MOCK_MODE live) that becomes a visible
+contradiction: switching markets in the UI would change the *request* shown in the Inspector but
+never the *response*, always showing identical USD pricing.
+Choice: promoted the Session 1.5 probe's 7 real market captures
+(`fixtures/probe/market-{CC}.json`) into `fixtures/markets/create-offer-{CC}.json`, trimmed to
+just the response body, plus one fresh live quantity variant
+(`create-offer-US-qty3.json`) captured for this phase specifically rather than reusing the
+2-day-old Session 1.5 numbers — pricing had already been observed to drift over time for
+identical inputs (`docs/SANDBOX-CAPABILITIES.md` Probe 3), so a fresh capture is a more honest
+"this is what MOCK_MODE shows" than a stale one. `xcoverClient.ts`'s new `mockedCreateOffer`
+selects by `${country}` or `${country}-qty${quantity}`, reading the fixture directory live via
+`listFixtureKeys` rather than hardcoding the list (can't drift from what's actually on disk).
+Deleted the now-dead `fixtures/create-offer.json` and its one call site — CLAUDE.md's "no dead
+code" applies to fixtures the same as source.
+This is still "recording captured traffic," not a rating engine, per the brief's explicit
+instruction — 8 fixed files, no interpolation or estimation between them. A request for any
+other market/quantity combination gets an honest `capture.mockNote` explaining exactly what's
+missing and what *is* recorded, and `offer: null` rather than a fabricated price — the frontend
+routes this through the same fail-open path Phase 1 built (`decision: "unprotected"` /
+"Continue without protection"), which already existed for a very similar situation (offer
+unavailable), so no new UI branch was needed, just a new reason to reach the existing one.
+Alternatives rejected: interpolating between recorded quantities/markets to approximate a
+missing combination — explicitly what the brief warns against ("do not build a rating engine"),
+and CLAUDE.md hard constraint 2 (never invent) applies just as much to a fabricated price as an
+invented field name. Silently falling back to the nearest recorded fixture — rejected because
+that's exactly the "serve a wrong one" the brief says not to do; a demoer who doesn't notice the
+mockNote could present a fabricated price as real.
+AI note: capturing the fresh qty=3 fixture surfaced a new, unprompted finding: at quantity 1,
+every market except Italy prices its 2-year plan above its 3-year plan (Probe 3); at quantity 3
+in the US specifically, that ordering flips too (2yr $1139.94 < 3yr $1244.48, vs 2yr $585.85 >
+3yr $532.29 at quantity 1). Not investigated further — same reasoning as the Italy anomaly, and
+explicitly out of scope to reverse-engineer XCover's rating curve — but logged in
+`docs/OPEN-QUESTIONS.md` #5 rather than left as a number nobody would notice.
+
 ### 2026-08-15 — Phase 1 hardening: fail-open error handling, after confirming the process actually crashed
 Context: Session 2's brief opened by asserting "a network failure to XCover currently kills the
 Node process" — rather than take that on faith, reproduced it first: `MOCK_MODE=false` with

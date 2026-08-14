@@ -86,7 +86,16 @@ export function App() {
         );
         return;
       }
-      if (capture.status >= 400) {
+      if (capture.mockNote) {
+        // MOCK_MODE has no fixture recorded for this exact market/quantity —
+        // honest about the gap rather than showing a price that isn't real
+        // for what was actually asked (see xcoverClient.ts mockedCreateOffer).
+        setOfferError(
+          `MOCK_MODE: ${capture.mockNote} You can still continue without protection below, or pick a recorded combination.`
+        );
+        return;
+      }
+      if (capture.status >= 400 || !offer) {
         setOfferError(
           `XCover returned ${capture.status} — see Inspector for details. You can still complete checkout without protection below.`
         );

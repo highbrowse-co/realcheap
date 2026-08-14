@@ -1,6 +1,6 @@
 import { buildAuthorizationHeader, rfc822Date } from "./signing.js";
 import { config } from "./config.js";
-import { loadFixture } from "./fixtures.js";
+import { listFixtureKeys, loadFixture } from "./fixtures.js";
 import type {
   CreateOfferRequest,
   CreateOfferResponse,
@@ -29,6 +29,14 @@ export interface Capture {
    * no" apart from "XCover was unreachable".
    */
   networkError: string | null;
+  /**
+   * MOCK_MODE only. Non-null when no recorded fixture matches this specific
+   * request (e.g. a market/quantity combination that was never captured
+   * live) — the response is a stand-in, not a real quote for what was asked.
+   * The frontend must show this rather than let a mismatched price look
+   * real. Always null in live mode.
+   */
+  mockNote: string | null;
 }
 
 // ASSUMPTION: 10s outbound timeout. The partner docs (offers/api/reference.md)
@@ -110,6 +118,7 @@ async function request<TReq, TRes>(
         latencyMs,
         mock: false,
         networkError,
+        mockNote: null,
       },
     };
   } finally {
@@ -143,8 +152,19 @@ async function request<TReq, TRes>(
       latencyMs,
       mock: false,
       networkError: null,
+      mockNote: null,
     },
   };
+}
+
+function mockRequestHeaders(): Record<string, string> {
+  return redactHeaders({
+    "Content-Type": "application/json",
+    Date: rfc822Date(new Date()),
+    "X-Api-Key": config.xcover.apiKey || "mock-key",
+    Authorization:
+      'Signature keyId="mock-key",algorithm="hmac-sha512",signature="mock-signature"',
+  });
 }
 
 async function mocked<TRes>(
@@ -161,19 +181,57 @@ async function mocked<TRes>(
     capture: {
       method,
       url: urlFor(path),
-      requestHeaders: redactHeaders({
-        "Content-Type": "application/json",
-        Date: rfc822Date(new Date()),
-        "X-Api-Key": config.xcover.apiKey || "mock-key",
-        Authorization:
-          'Signature keyId="mock-key",algorithm="hmac-sha512",signature="mock-signature"',
-      }),
+      requestHeaders: mockRequestHeaders(),
       requestBody: body,
       status,
       responseBody: data,
       latencyMs: 0,
       mock: true,
       networkError: null,
+      mockNote: null,
+    },
+  };
+}
+
+// The single static create-offer.json fixture (still used as-is) made every
+// market/quantity combination render identical USD pricing in MOCK_MODE while
+// the Inspector showed the request correctly varying — a contradiction a
+// panel would notice immediately in a fallback demo. This selects a fixture
+// recorded live for the actual country + quantity instead. Still just
+// replaying captured traffic (fixtures/probe/market-*.json, promoted into
+// fixtures/markets/) — not a rating engine; unmatched combinations say so
+// honestly rather than serving a wrong price (see mockNote on Capture).
+async function mockedCreateOffer(
+  body: CreateOfferRequest
+): Promise<XCoverResult<CreateOfferResponse>> {
+  const { country } = body.customer;
+  const { quantity } = body.context.product;
+  const key = quantity === 1 ? country : `${country}-qty${quantity}`;
+
+  let data: CreateOfferResponse | null = null;
+  let mockNote: string | null = null;
+  try {
+    data = await loadFixture<CreateOfferResponse>(`markets/create-offer-${key}`);
+  } catch {
+    const recorded = await listFixtureKeys("markets", "create-offer-");
+    mockNote =
+      `No recorded MOCK_MODE fixture for country=${country}, quantity=${quantity}. ` +
+      `Recorded combinations: ${recorded.join(", ")}.`;
+  }
+
+  return {
+    data: data as CreateOfferResponse,
+    capture: {
+      method: "POST",
+      url: urlFor("offers/"),
+      requestHeaders: mockRequestHeaders(),
+      requestBody: body,
+      status: 200,
+      responseBody: data,
+      latencyMs: 0,
+      mock: true,
+      networkError: null,
+      mockNote,
     },
   };
 }
@@ -196,7 +254,7 @@ function redact(value: string): string {
 
 export function createOffer(body: CreateOfferRequest) {
   return config.mockMode
-    ? mocked<CreateOfferResponse>("POST", "offers/", body, "create-offer", 200)
+    ? mockedCreateOffer(body)
     : request<CreateOfferRequest, CreateOfferResponse>("POST", "offers/", body);
 }
 

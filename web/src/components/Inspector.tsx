@@ -59,6 +59,12 @@ function InspectorEntry({ entry, defaultOpen }: { entry: CaptureEntry; defaultOp
             <strong>Request body</strong>
             <pre>{JSON.stringify(capture.requestBody, null, 2)}</pre>
           </div>
+          {capture.mockNote && (
+            <div>
+              <strong>MOCK_MODE note</strong>
+              <pre>{capture.mockNote}</pre>
+            </div>
+          )}
           {capture.networkError ? (
             <div>
               <strong>Network error (XCover was never reached)</strong>

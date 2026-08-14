@@ -118,6 +118,13 @@ underwriting input or a sandbox data quirk for this offer config.
 **Ask Cover Genius directly**: is the IT 3yr > 2yr pricing intentional (a real rating input for
 that market), or a configuration issue in this sandbox's `cse-interview-retail` offer config?
 
+**Related, found during Phase 2** (2026-08-15): the ordering isn't fixed per market either — at
+`quantity: 1` the US prices 2yr above 3yr ($585.85 vs $532.29, normal ordering), but at
+`quantity: 3` that flips too ($1139.94 vs $1244.48, `fixtures/markets/create-offer-US-qty3.json`).
+So this isn't "Italy is special," it's "the 2yr/3yr ordering isn't stable across market or
+quantity" — consistent with an underlying rating curve neither market nor quantity alone
+explains, which is exactly the kind of thing not to reverse-engineer further per scope.
+
 ## 6. Outbound call timeout (10s) is an assumption, not a documented value
 
 Added during Phase 1 hardening (2026-08-15). `server/src/xcoverClient.ts` now aborts an outbound

@@ -10,6 +10,8 @@ export interface Capture {
   mock: boolean;
   /** Non-null only when XCover was unreachable (DNS/timeout/refused), distinct from an XCover 4xx/5xx. */
   networkError: string | null;
+  /** MOCK_MODE only: non-null when no recorded fixture matched this exact request. */
+  mockNote: string | null;
 }
 
 export interface OfferProduct {
@@ -97,7 +99,9 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 export function createOffer(body: CreateOfferRequest) {
-  return postJson<{ offer: OfferResponse; capture: Capture }>("/offers", body);
+  // offer is null when MOCK_MODE has no recorded fixture for this exact
+  // market/quantity combination — see capture.mockNote.
+  return postJson<{ offer: OfferResponse | null; capture: Capture }>("/offers", body);
 }
 
 export function confirmOffer(offerId: string, body: ConfirmOfferRequest) {
