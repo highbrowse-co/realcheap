@@ -1,6 +1,6 @@
 import { buildAuthorizationHeader, rfc822Date } from "./signing.js";
 import { config } from "./config.js";
-import { listFixtureKeys, loadFixture } from "./fixtures.js";
+import { findMarketProductById, listFixtureKeys, loadFixture } from "./fixtures.js";
 import type {
   CreateOfferRequest,
   CreateOfferResponse,
@@ -252,6 +252,55 @@ function redact(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+// Found by actually driving MOCK_MODE in a browser (Phase 4), not by reading
+// the code: confirming any plan always showed the one static fixture's price
+// ($1321.95) regardless of which plan/market was actually offered and
+// selected — the same contradiction Phase 2 fixed for Create Offer, one step
+// later in the flow. This keeps the static confirm-offer.json fixture as the
+// booking template (id, coi, policyholder shape, etc. — none of that is
+// derivable from the request) but overrides the price fields with whatever
+// product the customer actually selected, matched by id against the market
+// fixtures. Falls back to the static fixture's own price unmatched (e.g. an
+// id that isn't from any recorded fixture) rather than erroring.
+async function mockedConfirmOffer(
+  path: string,
+  body: ConfirmOfferRequest
+): Promise<XCoverResult<ConfirmOfferResponse>> {
+  const base = await loadFixture<ConfirmOfferResponse>("confirm-offer");
+  const requestedQuoteId = body.quotes[0]?.id;
+  const matched = requestedQuoteId ? await findMarketProductById(requestedQuoteId) : null;
+
+  const data: ConfirmOfferResponse = matched
+    ? {
+        ...base,
+        currency: matched.currency,
+        total_price: matched.price,
+        total_price_formatted: matched.priceFormatted,
+        quotes: base.quotes.map((q, i) =>
+          i === 0 ? { ...q, price: matched.price, price_formatted: matched.priceFormatted } : q
+        ),
+      }
+    : base;
+
+  return {
+    data,
+    capture: {
+      method: "POST",
+      url: urlFor(path),
+      requestHeaders: mockRequestHeaders(),
+      requestBody: body,
+      status: 200,
+      responseBody: data,
+      latencyMs: 0,
+      mock: true,
+      networkError: null,
+      mockNote: matched
+        ? null
+        : `Confirmed quote id ${requestedQuoteId} wasn't found in any recorded market fixture — showing the static confirm-offer.json price as a fallback, which may not match the plan actually selected.`,
+    },
+  };
+}
+
 export function createOffer(body: CreateOfferRequest) {
   return config.mockMode
     ? mockedCreateOffer(body)
@@ -261,7 +310,7 @@ export function createOffer(body: CreateOfferRequest) {
 export function confirmOffer(offerId: string, body: ConfirmOfferRequest) {
   const path = `offers/${offerId}/confirm/`;
   return config.mockMode
-    ? mocked<ConfirmOfferResponse>("POST", path, body, "confirm-offer", 200)
+    ? mockedConfirmOffer(path, body)
     : request<ConfirmOfferRequest, ConfirmOfferResponse>("POST", path, body);
 }
 

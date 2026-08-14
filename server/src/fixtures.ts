@@ -22,3 +22,39 @@ export async function listFixtureKeys(subdir: string, prefix: string): Promise<s
     .map((f) => f.slice(prefix.length, -".json".length))
     .sort();
 }
+
+export interface MockMatchedProduct {
+  currency: string;
+  price: number;
+  priceFormatted: string;
+}
+
+/**
+ * Found by driving MOCK_MODE in a real browser (Phase 4), not by reading the
+ * code: Confirm Offer's mock response was one static fixture regardless of
+ * which plan/market the Create Offer step actually returned, so confirming a
+ * $585.85 US 2yr plan showed a confirmed price of $1321.95 — the exact
+ * market/quantity contradiction Phase 2 fixed for Create Offer, one step
+ * later in the flow. This searches every recorded market fixture for the
+ * product id the frontend is confirming, so the confirmed price can match
+ * what was actually offered. Still just matching against captured traffic —
+ * no rating logic, no price the sandbox didn't actually return.
+ */
+export async function findMarketProductById(quoteId: string): Promise<MockMatchedProduct | null> {
+  const keys = await listFixtureKeys("markets", "create-offer-");
+  for (const key of keys) {
+    const offer = await loadFixture<{
+      currency: string;
+      products: Array<{ id: string; details: { finance: { price: { total_amount: number; total_amount_formatted: string } } } }>;
+    }>(`markets/create-offer-${key}`);
+    const product = offer.products.find((p) => p.id === quoteId);
+    if (product) {
+      return {
+        currency: offer.currency,
+        price: product.details.finance.price.total_amount,
+        priceFormatted: product.details.finance.price.total_amount_formatted,
+      };
+    }
+  }
+  return null;
+}

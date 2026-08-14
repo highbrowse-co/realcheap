@@ -1,5 +1,52 @@
 # Decisions
 
+### 2026-08-15 — Phase 4: browser verification with Playwright, caught and fixed a real MOCK_MODE price mismatch
+Context: the Inspector's on-screen rendering hadn't been verified since the original build session
+(a throwaway Playwright pass, not part of the repo). Needed to actually drive the UI, not re-read
+the code — Phase 1's own AI note already flagged that reading the code wasn't enough to catch the
+204-body bug in the original build.
+Choice: throwaway Playwright scripts (`npm install --no-save playwright` in the scratchpad only —
+not added to the project's `package.json`, consistent with CLAUDE.md's "no unused dependencies in
+the final state"), driving the real dev server via Chromium. Covered: US market opt-in end to end
+including the cancellation flow, CA market decline, a market/quantity combination with no
+recorded MOCK_MODE fixture (GB × qty 3), a market/quantity combination that *does* have one (US ×
+qty 3), and — separately, with `.env` temporarily pointed at a broken host (backed up first,
+restored and `diff`-verified after, same discipline as Phase 1) — the unreachable-host and
+timeout failure paths from Phase 1. Checked `console --errors` after every run: none, across all
+of it.
+**Found a real bug this way, not by re-reading Phase 2's code**: confirming any plan in
+MOCK_MODE showed the one static `confirm-offer.json` fixture's price ($1321.95) regardless of
+which plan/market was actually offered and selected — visible in a screenshot as "Protection
+confirmed... US$1321.95" immediately under an offer that had shown $585.85. This is the exact
+market/quantity contradiction Phase 2 fixed for Create Offer, one step later in the flow, that
+Phase 2 didn't catch because it never drove the actual confirm step against a Phase-2-selected
+offer. Fixed: `findMarketProductById` (`server/src/fixtures.ts`) searches every recorded market
+fixture for the product id being confirmed and `mockedConfirmOffer`
+(`server/src/xcoverClient.ts`) overrides just the price/currency fields on the static booking
+template with the matched product's real recorded price — re-verified via the same Playwright
+script afterward, screenshot now shows the correct $585.85. Left the nested `tax`/`total_premium`/
+`commission` breakdown fields as the static fixture's original (now slightly inconsistent)
+figures rather than recomputing them proportionally — recalculating a tax breakdown from a price
+would cross into "reimplementing rating logic," which Phase 2's own brief explicitly ruled out;
+noted here as a stated, deliberate residual limitation rather than left silent.
+Did not browser-test the malformed-body/500 failure paths from Phase 1 specifically — those were
+verified server-side with curl in Phase 1, and the frontend's rendering code doesn't branch by
+failure *cause*, only by `networkError` vs `status >= 400` (already exercised by every 4xx
+captured throughout this project) vs a thrown exception (exercised by the unreachable-host
+browser test) — a third browser round-trip through the identical rendering branch wouldn't add
+information, so time went to the DNS-failure and timeout paths instead, which are genuinely
+distinct UX (the 10s wait, the loading-state-stays-disabled behavior) and hadn't been visually
+confirmed before.
+Alternatives rejected: adding `@playwright/test` as a real devDependency — rejected, this is
+verification tooling for this session, not a test suite CLAUDE.md asked for (the one required
+unit test, the HMAC vector, already exists); a committed E2E suite would be a legitimate future
+addition but is scope beyond what was asked here.
+AI note: the confirm-offer price bug is a good example of a defect that only exists at the
+*integration* of two otherwise-correct pieces (Phase 2's market-aware Create Offer, the
+untouched static Confirm Offer) — neither Phase 2's own testing (curl against Create Offer in
+isolation) nor a code read of either file in isolation would surface it, only actually clicking
+through Create Offer -> select a plan -> confirm and looking at the resulting screen.
+
 ### 2026-08-15 — Phase 3: resolved x-idempotency-key and the two-step cancellation flow, live; ported both to Postman; app not rewired
 Context: two carried-over questions from the brief. (1) The double-confirm 422 finding (Session
 1.5) was observed *without* an idempotency key — docs describe different behavior with one
