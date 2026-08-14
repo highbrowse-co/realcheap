@@ -1,0 +1,10 @@
+[
+  { "market_currency": "USD", "market_country": "US", "market_language": "en", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "CAD", "market_country": "CA", "market_language": "en", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "GBP", "market_country": "GB", "market_language": "en", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "EUR", "market_country": "IT", "market_language": "it", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "EUR", "market_country": "FR", "market_language": "fr", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "EUR", "market_country": "ES", "market_language": "es", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "EUR", "market_country": "DE", "market_language": "de", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "1" },
+  { "market_currency": "USD", "market_country": "US", "market_language": "en", "purchase_date": "2026-08-15", "retail_value": "1200", "quantity": "3" }
+]

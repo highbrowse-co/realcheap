@@ -1,0 +1,149 @@
+{
+  "request": {
+    "offerId": "48a0932d-cc1c-4a3e-b6ec-85e2c2407fb2",
+    "confirmBody": {
+      "quotes": [
+        {
+          "id": "dbf2c071-4a34-4b26-82fe-d87edc599843"
+        }
+      ],
+      "policyholder": {
+        "first_name": "Idem",
+        "last_name": "Test",
+        "email": "idem.test@example.com",
+        "phone": "+14155550188",
+        "country": "US"
+      }
+    },
+    "headers": {
+      "x-idempotency-key": "realcheap-idem-test-1786748335337"
+    }
+  },
+  "status": 200,
+  "response": {
+    "id": "V4MX9-T8VGR-INS",
+    "status": "CONFIRMED",
+    "currency": "USD",
+    "total_price": 360.43,
+    "total_price_formatted": "US$360.43",
+    "partner_transaction_id": null,
+    "created_at": "2026-08-14T22:58:56.305207Z",
+    "updated_at": "2026-08-14T22:58:56.305213Z",
+    "pds_url": "https://xcover-staging.com/en-us/pds/V4MX9-T8VGR-INS",
+    "security_token": "demtb-GFizA-vyFIe-TEzXl",
+    "quotes": [
+      {
+        "id": "dbf2c071-4a34-4b26-82fe-d87edc599843",
+        "policy_start_date": "2026-08-15T00:00:00",
+        "policy_end_date": null,
+        "status": "CONFIRMED",
+        "price": 360.43,
+        "price_formatted": "US$360.43",
+        "policy": {
+          "policy_type": "product_insurance_offer_engine",
+          "policy_type_version": "1",
+          "policy_type_slug": "product_insurance_offer_engine_v1",
+          "policy_type_group_name": "retail",
+          "policy_name": "CSE Interview - Retail Product Protection (EU)",
+          "policy_code": "CSEINTPR",
+          "policy_version": "ca17d11d-4954-4466-a2af-9a038b088caa",
+          "category": null,
+          "content": {},
+          "underwriter": {
+            "disclaimer": "Acasta European Insurance Company Limited",
+            "name": "Acasta European Insurance Company Limited"
+          },
+          "claim_selector_id": null,
+          "policy_currency": "EUR"
+        },
+        "insured": null,
+        "tax": {
+          "total_tax": 10.49,
+          "total_amount_without_tax": 349.94,
+          "taxes": [
+            {
+              "tax_amount": 10.49,
+              "tax_code": "Tax & Surcharge (label)",
+              "tax_amount_formatted": "US$10.49"
+            }
+          ],
+          "total_tax_formatted": "US$10.49",
+          "total_amount_without_tax_formatted": "US$349.94"
+        },
+        "duration": null,
+        "benefits": [],
+        "commission": {
+          "partner_commission": 104.98,
+          "surcharge_commission": 0,
+          "total_commission": 104.98,
+          "partner_commission_formatted": "US$104.98",
+          "surcharge_commission_formatted": "US$0.00",
+          "total_commission_formatted": "US$104.98"
+        },
+        "created_at": "2026-08-14T22:58:56.249511Z",
+        "confirmed_at": "2026-08-14T22:58:56.294552Z",
+        "updated_at": "2026-08-14T22:58:56.298410Z",
+        "cancelled_at": null,
+        "cancelled_from": null,
+        "is_renewable": false,
+        "is_pricebeat_enabled": null,
+        "cover_amount": null,
+        "cover_amount_formatted": null,
+        "pds_url": "https://xcover-staging.com/en-us/pds/V4MX9-T8VGR-INS?policy_type=product_insurance_offer_engine_v1&quote_id=dbf2c071-4a34-4b26-82fe-d87edc599843",
+        "attachments": [],
+        "files": [],
+        "custom_documents": null,
+        "extra_fields": {},
+        "surcharge": {
+          "total_amount": null,
+          "surcharges": null,
+          "total_amount_formatted": "US$0.00"
+        },
+        "parent_quote_status": null,
+        "experiment": null,
+        "next_renewal": null,
+        "can_be_cancelled": true,
+        "third_party_admins": [],
+        "ombudsman_list": [],
+        "cancellation_info": {
+          "reason_for_cancellation": ""
+        }
+      }
+    ],
+    "coi": {
+      "url": "https://xcover-staging.com/en-us/coi/V4MX9-T8VGR-INS?security_token=demtb-GFizA-vyFIe-TEzXl",
+      "pdf": "https://xcover-staging.com/en-us/coi/V4MX9-T8VGR-INS.pdf?security_token=demtb-GFizA-vyFIe-TEzXl"
+    },
+    "account_url": "https://xcover-staging.com/en-us/account?id=767b2849-cfbb-4ca7-add8-a61894ee3ddc&signup_token=qIShb-0eQ3K-BGIT0-aIGj0&region=eu-central-1",
+    "sign_up_url": "https://xcover-staging.com/en-us/account?id=767b2849-cfbb-4ca7-add8-a61894ee3ddc&signup_token=qIShb-0eQ3K-BGIT0-aIGj0&region=eu-central-1",
+    "policyholder": {
+      "first_name": "Idem",
+      "last_name": "Test",
+      "email": "idem.test@example.com",
+      "phone": "+14155550188",
+      "address1": null,
+      "address2": null,
+      "postcode": null,
+      "city": null,
+      "region": null,
+      "birth_date": null,
+      "gender": null,
+      "company": null,
+      "company_reg_id": null,
+      "middle_name": null,
+      "country": "US",
+      "age": null,
+      "secondary_email": null,
+      "allow_updates": false,
+      "fields_allowed_to_update": []
+    },
+    "total_tax": 10.49,
+    "total_tax_formatted": "US$10.49",
+    "total_premium": 349.94,
+    "total_premium_formatted": "US$349.94",
+    "fnol_link": "https://xcover-staging.com/en-us/account/claims/fnol?bookingID=V4MX9-T8VGR-INS&security_token=demtb-GFizA-vyFIe-TEzXl",
+    "cancel_link": "https://xcover-staging.com/en-us/cancel/V4MX9-T8VGR-INS?security_token=demtb-GFizA-vyFIe-TEzXl",
+    "booking_agent": null,
+    "fast_quote_id": "48a0932d-cc1c-4a3e-b6ec-85e2c2407fb2"
+  }
+}

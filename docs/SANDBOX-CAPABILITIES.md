@@ -113,12 +113,27 @@ un-cancelled; a second `cancel` call on an already-cancelled booking returns `42
 `preview:true` call followed by a real call both succeeded, confirming preview is read-only
 (`fixtures/probe/cancel-preview.json`, `cancel-confirm-1.json`).
 
-**Repeated confirm (double-click) — confirmed: rejected, not idempotent, no duplicate policy.**
-Confirming the same `offer_id` a second time returns `422`:
-`"Booking already exists for fast_quote_id {offer_id}. INS number: {booking_id}"`
-(`fixtures/probe/confirm-repeat.json`) — the existing booking ID is surfaced in the error text,
-which is enough for the frontend to recover gracefully from a double-click without inventing new
-error-handling behavior.
+**Two-step cancellation (`confirm_cancellation`) — confirmed working, Phase 3.** Every observed
+`preview:true` response (including from the original Session 1.5 probe) returns a real,
+populated `cancellation_id` — not exercised further until Phase 3, which called
+`POST bookings/{id}/confirm_cancellation/{cancellation_id}/` with it and got a real `200`,
+`status: CANCELLED`, real refund figures (`fixtures/probe/cancel-twostep-preview.json`,
+`cancel-twostep-confirm.json`). Both the single-call path (`cancel` with `preview:false`, what
+the app uses today) and the documented two-step path work on this account. Hit this project's
+only `429` here, immediately after the preview call — see Probe 6.
+
+**Repeated confirm (double-click), two mechanisms, confirmed:**
+- **Without an idempotency key** (original finding, Session 1.5): confirming the same `offer_id`
+  a second time returns `422`: `"Booking already exists for fast_quote_id {offer_id}. INS
+  number: {booking_id}"` (`fixtures/probe/confirm-repeat.json`) — the existing booking ID is
+  surfaced in the error text, enough for the frontend to recover without inventing new
+  error-handling behavior. This is what the app does today.
+- **With `x-idempotency-key`** (Phase 3, documented at `offers/api/idempotency-keys.md`):
+  resending the identical key + body returns `409 Conflict` with the **same booking** in the
+  body — not an error to route around, but the documented "treat as success" response, cached
+  for 48 hours (`fixtures/probe/idempotency-key-first.json`, `idempotency-key-repeat.json`). This
+  is the more correct mechanism; the app doesn't send this header today (see `docs/DECISIONS.md`
+  for why that wasn't changed this session). Both are now in `postman/`.
 
 **Duplicate-refund avoidance (`refund_required`)** — still inconclusive on this sandbox, as
 recorded in `docs/OPEN-QUESTIONS.md` #3 (partner has `xpay_refund_enabled: false`, so no payout
@@ -157,9 +172,13 @@ catch a mismatched pairing sent to it. This prototype's market selector already 
 7 correctly-paired combinations, so this doesn't change the build, but it's a real finding worth
 stating rather than assuming the API would have caught a mistake.
 
-**Rate limiting**: none encountered across this session's ~25 live calls plus the prior build
-session's calls. **Latency**: see `docs/API-NOTES.md` — roughly 230ms–2.8s per call, no
-retry/backoff logic was needed at this volume.
+**Rate limiting**: one real `429` encountered, Phase 3 (`docs/DECISIONS.md`) — calling
+`confirm_cancellation` immediately after a `preview` call, `"Request was throttled. Expected
+available in 1 second."` The only rate limit seen across this project's ~50 live calls total;
+retrying ~2s later succeeded. Revises the earlier "none encountered" finding — it wasn't that
+rate limiting doesn't exist on this account, just that nothing before Phase 3 had called two
+endpoints back-to-back fast enough to trigger it. **Latency**: see `docs/API-NOTES.md` —
+roughly 230ms–2.8s per call outside that one throttled call.
 
 ## Verdict
 

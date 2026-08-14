@@ -298,6 +298,227 @@
           ]
         }
       ]
+    },
+    {
+      "name": "4. Idempotency (x-idempotency-key)",
+      "item": [
+        {
+          "name": "Confirm Offer (with x-idempotency-key)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-idempotency-key", "value": "{{idempotency_key}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quotes\": [ { \"id\": \"{{quote_id}}\" } ],\n  \"policyholder\": {\n    \"first_name\": \"{{policyholder_first_name}}\",\n    \"last_name\": \"{{policyholder_last_name}}\",\n    \"email\": \"{{policyholder_email}}\",\n    \"phone\": \"{{policyholder_phone}}\",\n    \"country\": \"{{market_country}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/{{offer_id}}/confirm/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", "{{offer_id}}", "confirm", ""]
+            },
+            "description": "Run Create Offer first for a fresh offer_id/quote_id. Sets a fresh {{idempotency_key}} for this run and confirms with it. Per docs/API-NOTES.md / offers/api/idempotency-keys.md: the response body is cached against this key for 48 hours. Compare against the next request in this folder, which resends the identical key+body."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A fresh key per Runner iteration/manual run — Postman's built-in {{$guid}} dynamic variable.",
+                  "pm.environment.set('idempotency_key', pm.variables.replaceIn('realcheap-{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 (first confirm)', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('booking_id', body.id);",
+                  "  console.log('booking_id ->', body.id, ' idempotency_key ->', pm.environment.get('idempotency_key'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Repeat Confirm (same key+body) -> 409 cached result",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-idempotency-key", "value": "{{idempotency_key}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quotes\": [ { \"id\": \"{{quote_id}}\" } ],\n  \"policyholder\": {\n    \"first_name\": \"{{policyholder_first_name}}\",\n    \"last_name\": \"{{policyholder_last_name}}\",\n    \"email\": \"{{policyholder_email}}\",\n    \"phone\": \"{{policyholder_phone}}\",\n    \"country\": \"{{market_country}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/{{offer_id}}/confirm/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", "{{offer_id}}", "confirm", ""]
+            },
+            "description": "Must run immediately after 'Confirm Offer (with x-idempotency-key)' in the same session, unchanged, so offer_id/quote_id/idempotency_key are identical. Real captured behavior (fixtures/probe/idempotency-key-repeat.json): 409 Conflict, body is the SAME booking as the first call (same booking id), not a new booking and not the 'Booking already exists' 422 seen without the header (docs/API-NOTES.md). Per Cover Genius's docs this 409 is meant to be treated as a successful response by the client — it's the safe double-click/retry path, unlike confirming without an idempotency key."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409, same booking id as first confirm', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.environment.get('booking_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Two-step cancellation (preview -> confirm_cancellation)",
+      "item": [
+        {
+          "name": "Cancel Booking (Preview -> cancellation_id)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preview\": true,\n  \"quotes\": [ { \"id\": \"{{quote_id}}\" } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/bookings/{{booking_id}}/cancel",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["bookings", "{{booking_id}}", "cancel"]
+            },
+            "description": "Same preview call as folder 2, but this time captures `cancellation_id` from the response for the two-step flow documented at offers/api (confirm_cancellation). Confirmed live: preview always returns a real cancellation_id (fixtures/probe/cancel-preview.json, cancel-twostep-preview.json) — this wasn't exercised further in the initial build, which used the single-call preview:false path instead (folder 2, 'Cancel Booking (Confirm)'). Both paths work on this account; this is the one Cover Genius's docs describe as the intended two-step flow."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, cancellation_id present', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().cancellation_id).to.be.a('string');",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('cancellation_id', pm.response.json().cancellation_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm Cancellation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/bookings/{{booking_id}}/confirm_cancellation/{{cancellation_id}}/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["bookings", "{{booking_id}}", "confirm_cancellation", "{{cancellation_id}}", ""]
+            },
+            "description": "The documented second step: finalizes the previewed cancellation and processes any applicable refund. Confirmed working on this account (fixtures/probe/cancel-twostep-confirm.json) — returns 200, status CANCELLED, real refund figures. Hit a real 429 rate limit on the first attempt immediately after the preview call ('Request was throttled. Expected available in 1 second.') — the only rate limit seen across ~50 live calls this project; retrying after a couple seconds succeeded. Requires cancellation_id from the previous request in this folder."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, status CANCELLED (or 429 rate-limited — retry)', () => {",
+                  "  pm.expect([200, 429]).to.include(pm.response.code);",
+                  "  if (pm.response.code === 200) {",
+                  "    pm.expect(pm.response.json().status).to.eql('CANCELLED');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Extended queries and market matrix",
+      "item": [
+        {
+          "name": "Create Offer (extra_fields: tax,commission,benefits,surcharge)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": {\n    \"currency\": \"{{market_currency}}\",\n    \"language\": \"{{market_language}}\",\n    \"country\": \"{{market_country}}\"\n  },\n  \"partner\": {},\n  \"context\": {\n    \"purchase_date\": \"{{purchase_date}}\",\n    \"product\": {\n      \"retail_value\": {{retail_value}},\n      \"quantity\": {{quantity}}\n    }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/?include_content=true&extra_fields=tax,commission,benefits,surcharge",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", ""],
+              "query": [
+                { "key": "include_content", "value": "true" },
+                { "key": "extra_fields", "value": "tax,commission,benefits,surcharge" }
+              ]
+            },
+            "description": "Both are documented query string params (offers/api/reference.md), not body fields. Confirmed live (fixtures/probe/extra-fields-test.json): without extra_fields, `commission.total_amount` is always null in every capture in this repo; with it, it's populated (e.g. US$201.75 on a $1200/qty1 US quote) — relevant to the settlement/reconciliation out-of-scope item in docs/ARCHITECTURE.md, which already names `commission.partner_commission` as the reconciliation join key without this param having been tried yet."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Offer (Runner: market matrix)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": {\n    \"currency\": \"{{market_currency}}\",\n    \"language\": \"{{market_language}}\",\n    \"country\": \"{{market_country}}\"\n  },\n  \"partner\": {},\n  \"context\": {\n    \"purchase_date\": \"{{purchase_date}}\",\n    \"product\": {\n      \"retail_value\": {{retail_value}},\n      \"quantity\": {{quantity}}\n    }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}/offers/",
+              "host": ["{{xcover_domain}}{{xcover_base_path}}{{xcover_partner_code}}"],
+              "path": ["offers", ""]
+            },
+            "description": "Identical to folder 1's Create Offer — duplicated here (not referenced) so it can be run alone under Collection Runner against ../postman/market-matrix.postman_data.json without touching the main lifecycle folder's chained state. In Postman: Runner -> select only this request -> Data file -> market-matrix.postman_data.json -> Run. 8 iterations: the 7 target markets at quantity 1 plus one quantity-3 variant, matching fixtures/markets/*.json in the app's MOCK_MODE. Each iteration's request body varies by row; response pricing should differ per docs/SANDBOX-CAPABILITIES.md Probe 3/4."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  console.log(pm.iterationData.get('market_country'), pm.iterationData.get('quantity'), '->', body.currency, body.products?.[0]?.details?.finance?.price?.total_amount_formatted);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

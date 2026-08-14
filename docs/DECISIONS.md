@@ -1,5 +1,53 @@
 # Decisions
 
+### 2026-08-15 — Phase 3: resolved x-idempotency-key and the two-step cancellation flow, live; ported both to Postman; app not rewired
+Context: two carried-over questions from the brief. (1) The double-confirm 422 finding (Session
+1.5) was observed *without* an idempotency key — docs describe different behavior with one
+(`offers/api/idempotency-keys.md`: 409 returning a cached original result, 423 while still
+processing, 48h retention) that was never tested. (2) The Postman collection's Cancel (Confirm)
+posts to `/cancel` again rather than the documented two-step
+`bookings/{id}/confirm_cancellation/{cancellation_id}/`.
+Choice: tested both live before writing anything. `x-idempotency-key`: confirmed a repeat
+confirm with the identical key+body returns `409` with the *same* booking in the body (not a new
+one), matching the docs exactly (`fixtures/probe/idempotency-key-first.json`,
+`idempotency-key-repeat.json`); `423` (the documented concurrent-race case) wasn't reproduced —
+the two calls were sequential, not concurrent, and reproducing a genuine race deliberately felt
+like more engineering than the question warranted, so it's logged as documented-not-tested in
+`docs/API-NOTES.md` rather than asserted. `confirm_cancellation`: confirmed the documented
+two-step flow works end-to-end on this account — `preview:true` has *always* returned a real
+`cancellation_id` in every capture this project has made (including the original Session 1.5
+probe, not previously followed up on), and calling `confirm_cancellation` with it actually
+finalizes the cancellation with real refund figures (`fixtures/probe/cancel-twostep-preview.json`,
+`cancel-twostep-confirm.json`). Also verified `include_content`/`extra_fields` (documented query
+params, not body fields) live — `extra_fields=tax,commission,benefits,surcharge` is the only way
+`commission.total_amount` comes back non-null in any capture in this repo
+(`fixtures/probe/extra-fields-test.json`), relevant to the settlement out-of-scope item in
+`docs/ARCHITECTURE.md`. Ported all four (idempotency key, two-step cancel, extra_fields,
+include_content) into `postman/xcover-realcheap.postman_collection.json` as new folders, plus a
+Runner-drivable market-matrix request (`postman/market-matrix.postman_data.json`, 7 markets + 1
+quantity variant) — verified every new request via Newman against live, not just written and
+assumed correct (folder 4: 2/2 pass; folder 5: 2/2 pass, one live 429 hit and retried
+successfully as part of verification, not a flake worked around; folder 6: 16/16 pass across 8
+Runner iterations).
+**Deliberately did not rewire the app** to use either mechanism, even though both are the "more
+correct" documented behavior. The top-level brief for this session is explicit: "Do not rebuild
+anything that works. Do not restructure the codebase." Both of `App.tsx`'s current mechanisms
+(the 422-with-booking-ID double-confirm guard, the single-call `preview:false` cancel) are
+demonstrated working against live and already covered by Phase 1's error-surfacing work — neither
+is broken, so touching them would be scope creep against an explicit instruction, not hardening.
+Recorded here per the brief's own instruction to record deliberate non-fixes with reasoning
+rather than just doing them silently.
+Alternatives rejected: reproducing the `423` race condition with concurrent requests — would
+need real parallelism (e.g. `Promise.all` with two truly simultaneous calls) for a documented
+edge case that doesn't affect this build either way; not worth the added live-API load for a
+fact that's already stated plainly enough in the docs to trust without independent verification,
+unlike the SHA-512/SHA-256 and `context`-schema ambiguities which *did* warrant empirical
+resolution because guessing wrong there would have silently broken the whole integration.
+AI note: capturing the `extra_fields` test surfaced that `commission.total_amount` had been
+`null` in literally every prior capture in this repo (all of Session 1.5's fixtures, the
+original build fixtures) — not a bug, just a query param nobody had passed, caught by trying it
+rather than by re-reading old fixtures and wondering why the field was always null.
+
 ### 2026-08-15 — Phase 2: MOCK_MODE fixture selection by market/quantity, replacing the single static fixture
 Context: the original `fixtures/create-offer.json` was one static capture, always returned
 regardless of request — a known, previously-documented limitation (2026-08-13 web-checkout

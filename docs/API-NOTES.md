@@ -90,15 +90,68 @@ resolved.
 Base:    {XCOVER_API_DOMAIN}{XCOVER_BASE_PATH}{XCOVER_PARTNER_CODE}/
        = https://api.xcover-staging.com/xcover/partners/E3CCM/   (sandbox, this partner)
 
-POST  offers/                          Create Offer  (quote)
-POST  offers/{offer_id}/confirm/       Confirm Offer (opt in / book)
-POST  offers/{offer_id}/opt_out/       Opt Out Offer (decline) — 204 No Content, no body
-POST  bookings/{booking_id}/cancel     Cancel Booking
+POST  offers/                                                Create Offer  (quote)
+POST  offers/{offer_id}/confirm/                             Confirm Offer (opt in / book)
+POST  offers/{offer_id}/opt_out/                              Opt Out Offer (decline) — 204 No Content, no body
+POST  bookings/{booking_id}/cancel                           Cancel Booking (single-call, or preview:true)
+POST  bookings/{booking_id}/confirm_cancellation/{cancellation_id}/   Confirm a previewed cancellation
 ```
 
-All four take a JSON body and return JSON (opt-out excepted, which returns an empty 204 body).
-None of these paths, or any others, were invented — each was taken from the partner docs and
-confirmed to return a real response (200/204, or a structured error) against the live sandbox.
+All take a JSON body and return JSON (opt-out excepted, which returns an empty 204 body). None
+of these paths, or any others, were invented — each was taken from the partner docs and
+confirmed to return a real response (200/204, or a structured error) against the live sandbox,
+including `confirm_cancellation`, added and verified live during Phase 3 (`docs/DECISIONS.md`).
+
+### Create Offer query parameters: `include_content`, `extra_fields`
+
+Documented as query string parameters (not body fields) on Create Offer, confirmed live:
+
+```
+POST offers/?include_content=true&extra_fields=tax,commission,benefits,surcharge
+```
+
+`extra_fields` accepts `tax`, `commission`, `benefits`, `surcharge` (comma-separated).
+`commission.total_amount` is `null` in every response captured in this repo *without*
+`extra_fields` — passing it populates real figures (confirmed:
+`fixtures/probe/extra-fields-test.json`). Not wired into the app (out of scope — settlement is
+explicitly not built, per `docs/ARCHITECTURE.md`), but relevant if that were ever built: this is
+how the commission figures it would need actually get returned.
+
+### `x-idempotency-key` on Confirm Offer
+
+Documented at `offers/api/idempotency-keys.md`. A client-supplied header; confirmed live
+(`fixtures/probe/idempotency-key-first.json`, `idempotency-key-repeat.json`):
+
+- First confirm with a fresh `x-idempotency-key` + body: normal `200`, real booking created.
+- **Identical** key + body resent: `409 Conflict`, body is the **same booking** as the first
+  call (cached — not a new booking, not the `422 "Booking already exists"` seen when no
+  idempotency key is sent at all, docs/OPEN-QUESTIONS.md #4-adjacent finding). Docs state this
+  response is stored for **48 hours** and is meant to be treated by the client as a successful
+  response, not an error.
+- A `423 Locked` is documented for a genuine race (two identical requests within the same short
+  window, before the first has finished processing) — not reproduced here; the two confirms in
+  the test were sequential, not concurrent.
+
+This is the *correct* double-click/retry mechanism — cleaner than the app's current behavior
+(no idempotency key sent, so a double-click surfaces as a 422 the frontend has to interpret).
+Not wired into the app this session (would touch `xcoverClient.ts`/`App.tsx`, and "do not
+rebuild anything that works" — the existing 422 handling is a demonstrated working double-click
+guard, just not the documented ideal one); logged for a future pass.
+
+### Two-step cancellation: `preview` then `confirm_cancellation`
+
+The single-call path the app uses (`cancel` with `preview:false`/omitted) and the documented
+two-step path (`cancel` with `preview:true` → returns a real `cancellation_id` → `POST
+bookings/{id}/confirm_cancellation/{cancellation_id}/` to finalize) **both work on this
+account** — confirmed live end-to-end (`fixtures/probe/cancel-twostep-preview.json`,
+`cancel-twostep-confirm.json`). The preview call has always returned a populated
+`cancellation_id` in every capture in this repo, including the original Session 1.5 probe — it
+just wasn't carried forward to a `confirm_cancellation` call until Phase 3. See
+`docs/DECISIONS.md` for why the app itself wasn't rewired to the two-step flow this session.
+
+One real `429 Too Many Requests` was hit calling `confirm_cancellation` immediately after
+`preview` (`"Request was throttled. Expected available in 1 second."`) — the only rate limit
+seen across this project's ~50 live calls. Retrying ~2s later succeeded.
 
 ## `context` schema for Create Offer (E3CCM / `cse-interview-retail` only)
 
