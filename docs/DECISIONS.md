@@ -1,5 +1,34 @@
 # Decisions
 
+### 2026-08-15 — Phase 7: comprehension on-ramp (CODE-TOUR, WHY, WEAKEST-POINTS)
+Context: the user won't have watched this built and has a limited block to defend every line —
+asked for a reading order (not a summary that makes reading the code optional), the arguable
+design decisions a different engineer might have made differently, a ranked five-file priority
+list, and a blunt ranking of where this submission is weakest.
+Choice: `docs/CODE-TOUR.md` orders all 15 real source files server-first (signing → types →
+client → routes → bootstrap) then web (api → App → Inspector → boundary → mount), each with
+"responsible for / pay attention to / what breaks if wrong" rather than restating what the code
+already says — deliberately did not paraphrase logic, per the request that reading it shouldn't
+become optional. A "five files, in this order" section sits at the top rather than as a separate
+file, since it's a distillation of the same list, not a different one. `docs/WHY.md` picked seven
+decisions that are genuinely arguable — a different competent engineer really could have chosen
+differently on each — rather than re-justifying the out-of-scope items already covered in
+`docs/ARCHITECTURE.md`, which aren't arguable so much as bounded by CLAUDE.md directly. Rated the
+`App.tsx`-as-one-component choice as close to a coin flip rather than defending it as clearly
+right, since it's the one on the list that's grown past where it was originally a clean fit.
+`docs/WEAKEST-POINTS.md` ranks the credential-in-git-history issue first, ahead of anything about
+the code itself — asked to be blunt and ranked by likelihood of being found, and a real, still-
+unresolved credential exposure outranks every design trade-off in this project by a wide margin.
+Alternatives rejected: writing `WEAKEST-POINTS.md` to lead with something more comfortable (test
+coverage, scope generality) and bury the credential issue lower in the list — rejected as the
+kind of soft self-assessment this entire session has been working against; the whole point of a
+"read this so I'm not surprised" doc is that it doesn't do that.
+AI note: no code changed in this phase either — writing `docs/WHY.md` required re-reading each
+decision's original DECISIONS.md entry to state the trade-off accurately rather than from memory
+of having made it, which surfaced that the timeout-value and MOCK_MODE-nulling decisions were
+already documented with their reasoning elsewhere; `WHY.md`'s job was framing the same facts as
+"what would a different engineer have done," not rediscovering them.
+
 ### 2026-08-15 — Phase 6: submission package (ARCHITECTURE rewrite, DEMO-SCRIPT, PANEL-QA)
 Context: this session's brief asks for a submission package distinct from the working
 prototype — a presentable architecture diagram, a rehearsable demo script with a stated fallback,
