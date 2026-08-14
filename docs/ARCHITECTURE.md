@@ -1,5 +1,20 @@
 # Architecture
 
+## Governing principle: fail open
+
+> **RealCheap's checkout must complete even when XCover is entirely unavailable.** Protection is
+> ancillary. A partner's revenue must never depend on our uptime.
+
+This is not a hypothetical. Before the Phase 1 hardening pass (`docs/DECISIONS.md`, 2026-08-15),
+a single network failure calling XCover — DNS failure, connection refused, or a slow response —
+crashed the entire Node process, taking the whole checkout down with it, not just the protection
+offer. Confirmed by deliberately breaking it: an unresolvable host produced an uncaught
+`TypeError: fetch failed` that killed the server. Every place XCover is called now degrades
+instead: `xcoverClient.ts` never throws for a reachability failure (network error, timeout, or a
+non-JSON body), the frontend shows the customer a working "continue without protection" path when
+Create Offer fails for any reason, and a defense-in-depth error boundary/handler exists at both
+the Express and React layers in case something else goes wrong. See "Failure handling" below.
+
 ## What's built
 
 ```mermaid
@@ -59,6 +74,39 @@ sequenceDiagram
     X-->>S: 200 cancellation + refund figures
     S-->>U: {cancellation, capture}
 ```
+
+## Failure handling
+
+Three distinct failure classes, handled differently, because they mean different things:
+
+1. **XCover responds with an error** (4xx/5xx). A normal `capture.status` >= 400 with a real
+   body — not a crash, not a special case. The Inspector shows it like any other call.
+2. **XCover is unreachable** (DNS failure, connection refused, or our own 10s timeout —
+   `docs/API-NOTES.md` for why 10s). `xcoverClient.ts`'s `request()` catches this and returns
+   `capture.status: 0`, `capture.networkError: <reason>` instead of throwing. The proxy's own
+   HTTP response is still a clean `200` with that capture envelope inside it — the frontend and
+   Inspector branch on `networkError` to show "XCover was unreachable" distinctly from "XCover
+   said no."
+3. **Something we didn't anticipate** (a bug, not a known failure mode). `asyncHandler` wraps
+   every Express route so a rejected promise reaches `next(err)` instead of crashing the process;
+   a terminal error-handling middleware in `index.ts` turns that into a `500` JSON response; a
+   `process.on("unhandledRejection", ...)` handler is the last-resort net beneath that. On the
+   frontend, `ErrorBoundary` (`web/src/components/ErrorBoundary.tsx`) catches a render-time crash
+   in the checkout UI itself so it degrades to a message instead of a blank page.
+
+**The fail-open path that matters most**: when Create Offer fails for *any* reason (case 1, 2, or
+a thrown exception reaching `fetchOffer`'s `catch`), the frontend shows the error and a "Continue
+checkout without protection" button (`App.tsx`, `decision: "unprotected"`) — the purchase is not
+blocked by XCover being down or erroring. `handleOptIn`/`handleDecline`/`handleCancel` each got
+the same treatment: previously a failed call did nothing visible at all (no state change, no
+message); now each surfaces a specific, actionable error.
+
+This was verified by actually breaking it, not just reading the code — deliberately pointed
+`XCOVER_API_DOMAIN` at an unresolvable host, a non-routable address (timeout), a host returning
+HTML instead of JSON, and a host returning a real `500`. All four degraded to a normal `200`
+proxy response with the failure captured, and the server process stayed up throughout — confirmed
+via `/api/health` staying reachable after each. See `docs/DECISIONS.md`, 2026-08-15 entry, for
+the exact commands.
 
 ## Out of scope
 

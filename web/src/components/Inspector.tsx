@@ -37,8 +37,8 @@ function InspectorEntry({ entry, defaultOpen }: { entry: CaptureEntry; defaultOp
   return (
     <div className="inspector-entry">
       <button className="inspector-entry-header" onClick={() => setOpen((o) => !o)}>
-        <span className={`status-badge ${capture.status < 400 ? "ok" : "error"}`}>
-          {capture.status}
+        <span className={`status-badge ${capture.networkError ? "unreachable" : capture.status < 400 ? "ok" : "error"}`}>
+          {capture.networkError ? "UNREACHABLE" : capture.status}
         </span>
         <span className="inspector-entry-label">{entry.label}</span>
         <span className="muted">
@@ -59,10 +59,17 @@ function InspectorEntry({ entry, defaultOpen }: { entry: CaptureEntry; defaultOp
             <strong>Request body</strong>
             <pre>{JSON.stringify(capture.requestBody, null, 2)}</pre>
           </div>
-          <div>
-            <strong>Response body</strong>
-            <pre>{JSON.stringify(capture.responseBody, null, 2)}</pre>
-          </div>
+          {capture.networkError ? (
+            <div>
+              <strong>Network error (XCover was never reached)</strong>
+              <pre>{capture.networkError}</pre>
+            </div>
+          ) : (
+            <div>
+              <strong>Response body</strong>
+              <pre>{JSON.stringify(capture.responseBody, null, 2)}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>

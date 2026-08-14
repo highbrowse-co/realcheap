@@ -3,10 +3,13 @@ export interface Capture {
   url: string;
   requestHeaders: Record<string, string>;
   requestBody: unknown;
+  /** 0 when XCover could not be reached at all — see `networkError`. */
   status: number;
   responseBody: unknown;
   latencyMs: number;
   mock: boolean;
+  /** Non-null only when XCover was unreachable (DNS/timeout/refused), distinct from an XCover 4xx/5xx. */
+  networkError: string | null;
 }
 
 export interface OfferProduct {
@@ -70,12 +73,27 @@ export interface CancelBookingRequest {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return (await res.json()) as T;
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // The RealCheap server itself is unreachable (not XCover — the proxy
+    // always answers 200 with a capture envelope, even when XCover fails).
+    // This is a different failure class every caller needs to be able to
+    // catch and show, rather than an uncaught rejection.
+    throw new Error(
+      `Could not reach the RealCheap server: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new Error(`RealCheap server returned a non-JSON response (HTTP ${res.status}).`);
+  }
 }
 
 export function createOffer(body: CreateOfferRequest) {

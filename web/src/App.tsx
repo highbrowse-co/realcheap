@@ -12,7 +12,10 @@ import {
 } from "./lib/api";
 import { Inspector, type CaptureEntry } from "./components/Inspector";
 
-type Decision = "pending" | "confirmed" | "declined";
+// "unprotected" is reached when Create Offer fails and the customer chooses to
+// continue anyway — the fail-open path (docs/ARCHITECTURE.md): RealCheap's
+// checkout must complete even when XCover is entirely unavailable.
+type Decision = "pending" | "confirmed" | "declined" | "unprotected";
 
 export function App() {
   const [market, setMarket] = useState<Market>(MARKETS[0]);
@@ -35,6 +38,11 @@ export function App() {
   const [alreadyRefunded, setAlreadyRefunded] = useState(false);
   const [cancellation, setCancellation] = useState<CancellationResponse | null>(null);
 
+  // Errors from opt-in/decline/cancel — distinct from offerError (Create
+  // Offer), since those three actions previously did nothing visible on
+  // failure: no state change, no message, just a dead click.
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const [entries, setEntries] = useState<CaptureEntry[]>([]);
   const addEntry = (label: string, capture: CaptureEntry["capture"]) =>
     setEntries((prev) => [...prev, { label, capture }]);
@@ -46,6 +54,7 @@ export function App() {
     setDecision("pending");
     setBooking(null);
     setCancellation(null);
+    setActionError(null);
   }
 
   async function handleMarketChange(country: string) {
@@ -71,50 +80,109 @@ export function App() {
         },
       });
       addEntry("Create Offer", capture);
+      if (capture.networkError) {
+        setOfferError(
+          `Could not reach XCover (${capture.networkError}). You can still complete checkout without protection below.`
+        );
+        return;
+      }
       if (capture.status >= 400) {
-        setOfferError(`XCover returned ${capture.status} — see Inspector for details.`);
+        setOfferError(
+          `XCover returned ${capture.status} — see Inspector for details. You can still complete checkout without protection below.`
+        );
         return;
       }
       setOffer(offer);
+    } catch (err) {
+      // postJson throws for a failure that never reached our own server at
+      // all (browser-level network error). Same fail-open outcome as an
+      // XCover-side failure: the customer must still be able to check out.
+      setOfferError(
+        `${err instanceof Error ? err.message : "Unexpected error"} — you can still complete checkout without protection below.`
+      );
     } finally {
       setOfferLoading(false);
     }
   }
 
+  // Fail-open path: Create Offer failed for any reason (XCover down, XCover
+  // rejected the request, or our own server unreachable). Protection is
+  // ancillary — the purchase itself must not be blocked by it.
+  function handleContinueWithoutProtection() {
+    setDecision("unprotected");
+  }
+
   async function handleOptIn() {
     if (!offer || !selectedProductId) return;
-    const { booking, capture } = await confirmOffer(offer.id, {
-      quotes: [{ id: selectedProductId }],
-      policyholder: { ...policyholder, country: market.country },
-    });
-    addEntry("Confirm Offer (opt-in)", capture);
-    if (capture.status < 400) {
+    setActionError(null);
+    try {
+      const { booking, capture } = await confirmOffer(offer.id, {
+        quotes: [{ id: selectedProductId }],
+        policyholder: { ...policyholder, country: market.country },
+      });
+      addEntry("Confirm Offer (opt-in)", capture);
+      if (capture.networkError) {
+        setActionError(`Could not reach XCover (${capture.networkError}). Protection was not confirmed — try again.`);
+        return;
+      }
+      if (capture.status >= 400) {
+        setActionError(`XCover rejected the confirmation (${capture.status}) — see Inspector for details.`);
+        return;
+      }
       setBooking(booking);
       setDecision("confirmed");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unexpected error confirming protection.");
     }
   }
 
   async function handleDecline() {
     if (!offer) return;
-    const { capture } = await optOutOffer(offer.id);
-    addEntry("Opt-out Offer (decline)", capture);
-    if (capture.status < 400) setDecision("declined");
+    setActionError(null);
+    try {
+      const { capture } = await optOutOffer(offer.id);
+      addEntry("Opt-out Offer (decline)", capture);
+      if (capture.networkError) {
+        setActionError(`Could not reach XCover (${capture.networkError}) to record the decline — try again.`);
+        return;
+      }
+      if (capture.status >= 400) {
+        setActionError(`XCover rejected the decline (${capture.status}) — see Inspector for details.`);
+        return;
+      }
+      setDecision("declined");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unexpected error recording the decline.");
+    }
   }
 
   async function handleCancel() {
     if (!booking) return;
-    const { cancellation, capture } = await cancelBooking(booking.id, {
-      preview: false,
-      refund_required: !alreadyRefunded,
-      quotes: booking.quotes.map((q) => ({
-        id: q.id,
-        reason_for_cancellation: alreadyRefunded
-          ? "RealCheap issued its own refund"
-          : "Customer requested cancellation",
-      })),
-    });
-    addEntry("Cancel Booking", capture);
-    if (capture.status < 400) setCancellation(cancellation);
+    setActionError(null);
+    try {
+      const { cancellation, capture } = await cancelBooking(booking.id, {
+        preview: false,
+        refund_required: !alreadyRefunded,
+        quotes: booking.quotes.map((q) => ({
+          id: q.id,
+          reason_for_cancellation: alreadyRefunded
+            ? "RealCheap issued its own refund"
+            : "Customer requested cancellation",
+        })),
+      });
+      addEntry("Cancel Booking", capture);
+      if (capture.networkError) {
+        setActionError(`Could not reach XCover (${capture.networkError}). Booking was not cancelled — try again.`);
+        return;
+      }
+      if (capture.status >= 400) {
+        setActionError(`XCover rejected the cancellation (${capture.status}) — see Inspector for details.`);
+        return;
+      }
+      setCancellation(cancellation);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unexpected error cancelling the booking.");
+    }
   }
 
   const subtotal = new Intl.NumberFormat(undefined, {
@@ -167,12 +235,28 @@ export function App() {
 
           <section>
             <h2>Protection</h2>
-            {!offer && (
+            {!offer && decision !== "unprotected" && (
               <button onClick={fetchOffer} disabled={offerLoading}>
                 {offerLoading ? "Loading offer..." : "Get protection offer"}
               </button>
             )}
-            {offerError && <p className="error">{offerError}</p>}
+            {offerError && decision !== "unprotected" && (
+              <div>
+                <p className="error">{offerError}</p>
+                {/* Fail-open: protection is ancillary — a broken or unreachable
+                    XCover must never block the purchase itself. */}
+                <button className="secondary" onClick={handleContinueWithoutProtection}>
+                  Continue checkout without protection
+                </button>
+              </div>
+            )}
+
+            {decision === "unprotected" && (
+              <p>
+                Order placed without protection — XCover's offer could not be retrieved this time.
+                This purchase is not covered. ({offerError})
+              </p>
+            )}
 
             {offer && decision === "pending" && (
               <div className="offer-card">
@@ -230,6 +314,7 @@ export function App() {
                   </div>
                 </fieldset>
 
+                {actionError && <p className="error">{actionError}</p>}
                 <div className="row">
                   <button onClick={handleOptIn} disabled={!selectedProductId}>
                     {offer.content.positive_cta}
@@ -270,6 +355,7 @@ export function App() {
                       Booking. See docs/OPEN-QUESTIONS.md for what this sandbox could and
                       couldn't confirm about that field's effect on payout.
                     </p>
+                    {actionError && <p className="error">{actionError}</p>}
                   </div>
                 )}
 

@@ -118,6 +118,19 @@ underwriting input or a sandbox data quirk for this offer config.
 **Ask Cover Genius directly**: is the IT 3yr > 2yr pricing intentional (a real rating input for
 that market), or a configuration issue in this sandbox's `cse-interview-retail` offer config?
 
+## 6. Outbound call timeout (10s) is an assumption, not a documented value
+
+Added during Phase 1 hardening (2026-08-15). `server/src/xcoverClient.ts` now aborts an outbound
+XCover call after 10 seconds (`// ASSUMPTION:` comment at `XCOVER_TIMEOUT_MS`). Checked
+`offers/api/reference.md` directly for a published SLA or recommended client timeout — none
+exists. 10s was chosen from observed live latency only: ~230ms-2.8s across ~30 calls made during
+the build and Session 1.5 probe, so 10s is >3x the worst observed call. If XCover's real p99
+latency under load is close to or above 10s, this value would misclassify a merely-slow call as
+"unreachable" rather than waiting it out — cheap to change (one constant) if that's wrong.
+
+**Ask Cover Genius directly**: is there a published or recommended client-side timeout for the
+Offers/Bookings API? Is 10s reasonable, or does typical p99 latency run close to it?
+
 ## To send to Cover Genius
 
 - Is the `authentication.md` SHA-512 guidance authoritative, or does the "HMAC-SHA256" wording
@@ -131,6 +144,7 @@ that market), or a configuration issue in this sandbox's `cse-interview-retail` 
   guard against calling it post-confirm? (#4)
 - Is IT's 3yr-more-expensive-than-2yr pricing intentional, or a config issue in this offer
   config? (#5)
+- Is there a published or recommended client-side timeout for the Offers/Bookings API? (#6)
 
 Kept short on purpose — everything else needed for the build was answered empirically against
 the live sandbox (see `docs/SANDBOX-CAPABILITIES.md`).

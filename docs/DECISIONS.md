@@ -1,5 +1,50 @@
 # Decisions
 
+### 2026-08-15 — Phase 1 hardening: fail-open error handling, after confirming the process actually crashed
+Context: Session 2's brief opened by asserting "a network failure to XCover currently kills the
+Node process" — rather than take that on faith, reproduced it first: `MOCK_MODE=false` with
+`XCOVER_API_DOMAIN` pointed at an unresolvable host, hit `/api/offers`. Server log showed an
+uncaught `TypeError: fetch failed` and the process died; the client got a connection reset, not
+an HTTP error. Confirmed the premise before writing any fix.
+Choice: three-layer fix, one per failure class (`docs/ARCHITECTURE.md` "Failure handling" has the
+full breakdown). (1) `xcoverClient.ts`'s `request()` now catches fetch failures and timeouts
+itself and returns `capture.status: 0, capture.networkError: <reason>` instead of throwing —
+this is the failure class that used to crash the process, so it gets handled at the source
+rather than caught further up. (2) A 10s `AbortController` timeout — no published SLA exists (checked
+`offers/api/reference.md` directly), so this is `// ASSUMPTION:` marked in code and logged in
+OPEN-QUESTIONS.md, justified by ~230ms-2.8s observed live latency giving >3x headroom. (3)
+`JSON.parse(text)` guarded — a non-JSON body (e.g. an HTML error page from an intermediate
+gateway) now degrades to a raw-text capture instead of throwing. (4) `asyncHandler` wraps every
+route as defense-in-depth for anything not already caught by (1)-(3), feeding a terminal Express
+error middleware instead of an uncaught exception; `process.on("unhandledRejection", ...)` is the
+last-resort net beneath that. (5) Frontend: `handleOptIn`/`handleDecline`/`handleCancel` gained
+try/catch and a visible `actionError` — previously a failed call did nothing observable at all,
+which is arguably worse than a crash for a demo (a silent no-op looks like the click didn't
+register). (6) `decision: "unprotected"` + "Continue checkout without protection" button: the
+actual fail-open behavior CLAUDE.md's principle requires — Create Offer failing for any reason no
+longer blocks the purchase. (7) `ErrorBoundary` class component wraps `<App />` in `main.tsx` for
+render-time crashes, a different failure class from anything XCover-related.
+Alternatives rejected: reaching for `express-async-errors` (a one-line fix, but an added
+dependency for something four short route handlers don't need — CLAUDE.md's "no unused
+dependencies" and "boring explicit code" both point at writing the ~8-line `asyncHandler.ts`
+instead). Retrying failed XCover calls automatically — rejected for this prototype: a demo
+benefits from a failure being visible and immediate (the fail-open button), not silently retried
+and delayed; a real integration might retry, but that's product behavior beyond this scope.
+Verification: broke it four ways for real, not just read the fix and assumed it worked —
+unresolvable host (`ENOTFOUND`, via `.cause` unwrapping added after the first attempt returned
+the unhelpful generic "fetch failed"), a non-routable `192.0.2.1` address (confirmed the 10s
+timeout fires at ~10.0s exactly), a real HTTPS host returning HTML instead of JSON
+(`example.com`), and a real `500` from a local throwaway HTTP server. All four returned a clean
+`200` proxy response with the failure captured, and `/api/health` stayed reachable after each —
+the process never went down again. `.env` was backed up before any of this and restored
+byte-for-byte afterward (`diff` confirmed), and all throwaway processes were killed.
+AI note: the first attempt at the unresolvable-host test produced `networkError: "fetch failed"`
+— technically correct but useless for actually debugging a real outage, since Node's `fetch`
+puts the real reason (`ENOTFOUND`, etc.) in `err.cause`, not `err.message`. Caught by reading the
+Inspector-facing output of my own test, not by reading MDN's fetch docs first — fixed by
+unwrapping `err.cause` when present. This is exactly the kind of gap that only running the
+failure surfaces; the code would have "worked" (not crashed) with the unhelpful message too.
+
 ### 2026-08-15 — Session 1.5 sandbox capability probe, run retroactively against an already-built app
 Context: the Session 1.5 probe prompt is written to run *before* any application code exists —
 it explicitly says "do not build any application code this session." By the time it was run,

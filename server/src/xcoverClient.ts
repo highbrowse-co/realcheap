@@ -16,11 +16,30 @@ export interface Capture {
   url: string;
   requestHeaders: Record<string, string>;
   requestBody: unknown;
+  /** 0 when XCover could not be reached at all — see `networkError`. */
   status: number;
   responseBody: unknown;
   latencyMs: number;
   mock: boolean;
+  /**
+   * Non-null only when the request never got an HTTP response from XCover at
+   * all — DNS failure, connection refused, or our own timeout. Distinct from
+   * XCover returning a 4xx/5xx, which is a normal `status`/`responseBody`
+   * pair. The frontend and Inspector both branch on this to tell "XCover said
+   * no" apart from "XCover was unreachable".
+   */
+  networkError: string | null;
 }
+
+// ASSUMPTION: 10s outbound timeout. The partner docs (offers/api/reference.md)
+// state no published SLA or recommended client timeout — checked directly,
+// not guessed. Observed live latency across ~30 sandbox calls (this build +
+// the Session 1.5 probe) ranged ~230ms-2.8s. 10s gives >3x headroom over the
+// worst observed call while still bounding how long a demo can hang before
+// the fail-open path kicks in. If XCover's real p99 exceeds this under load,
+// lower confidence in "unreachable" classifications for calls that were
+// merely slow, not actually down — logged in docs/OPEN-QUESTIONS.md.
+const XCOVER_TIMEOUT_MS = 10_000;
 
 export interface XCoverResult<T> {
   data: T;
@@ -51,14 +70,66 @@ async function request<TReq, TRes>(
   };
 
   const start = performance.now();
-  const res = await fetch(url, {
-    method,
-    headers: requestHeaders,
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), XCOVER_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    // XCover was never reached at all — DNS failure, connection refused,
+    // or our own abort() firing on timeout. This is not an XCover error
+    // response; there is no status code or body to show for it.
+    const latencyMs = Math.round(performance.now() - start);
+    const isAbort = err instanceof Error && err.name === "AbortError";
+    // Node's fetch wraps the real reason in `.cause` and leaves `.message` as
+    // the generic "fetch failed" — caught by actually triggering this path
+    // (an unresolvable host) and seeing an uninformative message in the
+    // Inspector, not by reading the fetch() types.
+    const cause =
+      err instanceof Error && err.cause instanceof Error ? `: ${err.cause.message}` : "";
+    const networkError = isAbort
+      ? `timed out after ${XCOVER_TIMEOUT_MS}ms`
+      : err instanceof Error
+        ? `${err.message}${cause}`
+        : String(err);
+    return {
+      data: null as TRes,
+      capture: {
+        method,
+        url,
+        requestHeaders: redactHeaders(requestHeaders),
+        requestBody: body,
+        status: 0,
+        responseBody: null,
+        latencyMs,
+        mock: false,
+        networkError,
+      },
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+
   const latencyMs = Math.round(performance.now() - start);
   const text = await res.text();
-  const responseBody = text ? JSON.parse(text) : null;
+  // A non-2xx from an upstream gateway (not XCover itself) could return HTML
+  // or plain text instead of JSON. That's still a real response — status and
+  // latency are meaningful — so this must not throw; it degrades to showing
+  // the raw text instead of a parsed body.
+  let responseBody: unknown = null;
+  if (text) {
+    try {
+      responseBody = JSON.parse(text);
+    } catch {
+      responseBody = { _rawBody: text.slice(0, 2000), _parseError: "response was not valid JSON" };
+    }
+  }
 
   return {
     data: responseBody as TRes,
@@ -71,6 +142,7 @@ async function request<TReq, TRes>(
       responseBody,
       latencyMs,
       mock: false,
+      networkError: null,
     },
   };
 }
@@ -101,6 +173,7 @@ async function mocked<TRes>(
       responseBody: data,
       latencyMs: 0,
       mock: true,
+      networkError: null,
     },
   };
 }
