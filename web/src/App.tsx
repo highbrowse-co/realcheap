@@ -57,7 +57,7 @@ export function App() {
     setActionError(null);
   }
 
-  async function handleMarketChange(country: string) {
+  function handleMarketChange(country: string) {
     setMarket(MARKETS.find((m) => m.country === country)!);
     resetOffer();
   }

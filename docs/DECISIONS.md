@@ -1,5 +1,106 @@
 # Decisions
 
+### 2026-08-15 — Phase 5: adversarial review (blind subagent), one critical finding and three high-severity fixes
+Context: per this session's brief, spawned a fresh subagent with only the review brief and the
+repo path — no context from this session's own work, so it evaluated what exists, not what was
+intended. It was told to act as a sceptical panel of senior solutions engineers (two ex-developers),
+find what would embarrass the candidate live, check seven specific angles (undocumented API use,
+hardcoded-value fragility, credential exposure including git history, a fresh README clone, unhandled
+error paths, unsupported doc claims, and the three hardest questions), verify everything against
+actual commands/output rather than trusting the repo's own docs, and report by severity without
+fixing anything. Full findings were cross-checked against direct evidence before acting on any of
+them (re-ran the exact commands myself; did not act on the subagent's word alone).
+
+**Critical — confirmed, fixed the exposure going forward, cannot fully remediate alone.** The real
+live XCover sandbox secret (`.env`'s `XCOVER_API_SECRET`) was hardcoded as the HMAC test vector's
+`SECRET` in `server/src/signing.test.ts`, committed at `e072e9a` and present unchanged in every
+commit since — verified directly with `git show e072e9a:server/src/signing.test.ts` and `grep`
+against the current `.env`, byte-identical. The "independently-computed via OpenSSL" framing was
+true of the *signature*, but obscured that the *secret* itself was the real credential, not a
+synthetic one. Fixed going forward: replaced with a synthetic secret and a freshly, independently
+OpenSSL-computed vector for it (cross-checked against the implementation before committing to it,
+same discipline as the original). **Not fixed, and outside what I'll do unilaterally**: the real
+secret is still recoverable from this repo's git history (`git log -p`), and rewriting shared
+history (filter-branch/BFG, or force-pushing a squashed history) is exactly the kind of
+destructive, hard-to-reverse operation this environment's own guidance says requires explicit
+authorization, not something to do automatically because a review flagged it. Flagged directly to
+the user, not just logged here: **the credential should be treated as compromised and rotated with
+Cover Genius regardless of what happens to this repo's history**, since it's been in a
+world-readable state (to anyone who cloned or was given repo access) since the second work session.
+
+**High, confirmed and fixed — MOCK_MODE Confirm Offer showed currency-mismatched figures with no
+disclaimer.** The Phase 4 fix only patched top-level `total_price`; everything else (tax, premium,
+the nested `quotes[0].tax`, `policyholder`) stayed from the one static `confirm-offer.json`
+fixture. Verified live: confirming a GBP offer returned `total_price_formatted: "£454.43"` sitting
+next to `total_tax_formatted: "US$38.50"` — a currency-mismatched, arithmetically-nonsensical
+response (the "without tax" figure exceeded the total) that `mockNote` reported as `null`
+(i.e., "this is a clean match"), the opposite of true. Fixed: `findMarketProductById`
+(`server/src/fixtures.ts`) now returns the matched product's tax/premium figures alongside price;
+`mockedConfirmOffer` (`server/src/xcoverClient.ts`) overrides every currency-shaped field from that
+match, echoes the real requested quote id (rather than the static fixture's unrelated one — this
+also makes the id traceable into Cancel, next), and echoes the customer's actual submitted
+`policyholder` instead of the fixture's hardcoded "Jamie Rivera." `commission` is nulled rather
+than left mismatched — no market fixture has real commission data without `extra_fields=commission`
+(Phase 3), so null is the honest value, not a guess. Extended `ConfirmOfferResponse`
+(`server/src/xcoverTypes.ts`) to type these fields properly rather than relying on structural
+looseness. Re-verified live (GBP confirm now shows `£13.23` tax, `£441.20` premium, real submitted
+policyholder) and via the same Phase 4 Playwright regression script (still 0 console errors).
+
+**High, confirmed and fixed — MOCK_MODE Cancel Booking was fully static, unrelated to the booking
+being cancelled.** Every cancellation, regardless of what was booked, returned
+`fixtures/cancel-booking.json` verbatim: customer "Alex Chen," refund $477.05. This is the fixture
+meant to demonstrate CLAUDE.md scope item 6 (avoiding duplicate compensation on cancellation) — an
+unrelated customer's refund figure undermines the one thing this demo path exists to show. Fixed:
+`mockedCancelBooking` (new, `server/src/xcoverClient.ts`) applies the same `findMarketProductById`
+match (now reachable because Confirm echoes back the real quote id) to override currency/refund
+figures, and **nulls the policyholder entirely** rather than show a name — Cancel Booking's request
+never includes policyholder details at all, so there is no honest value to show, only the static
+fixture's leftover one. `adjustment_fee` is also nulled (can't be derived without reimplementing
+the cancellation/proration math, which is out of scope the same way rating is). Extended
+`CancelBookingResponse` to type the new fields. Re-verified live: cancelling the GBP booking above
+now returns `currency: "GBP"`, `total_refund_formatted: "£454.43"`, and an all-null policyholder.
+
+**High, confirmed and fixed — a stale claim in this file's own record contradicted the shipped
+code.** The 2026-08-13 "Server proxy" entry states routes mirror XCover's HTTP status; the actual,
+current behavior (routes always return 200, real status inside `capture.status`) was decided in
+the *next* entry down and never backported as a correction to the first. Added an inline
+correction rather than rewriting the original sentence — this file's value is the record of what
+was believed and decided at each point, not a live reference.
+
+**High, addressed (not a code bug, a coverage gap) — MOCK_MODE only had offers for 8 of 35
+market×quantity combinations the UI exposes** (7 markets × qty 1, plus US × qty 3); every other
+combination hit the honest-but-empty `mockNote` path built in Phase 2. Disclosed, not silent, but
+the review's point stands: a panelist touching both the market and quantity selectors — the two
+most prominent controls — had roughly a 3-in-4 chance of landing on "no offer" in the mode this
+app runs in by default. Closed by capturing the remaining 27 combinations live (all 7 markets ×
+quantities 1-5, `fixtures/markets/create-offer-{CC}[-qty{N}].json`, 35 files total) — same pattern
+as Phase 2, still just recorded captured traffic, no rating logic added. No rate limiting hit
+across the 27 calls.
+
+**Medium, confirmed and corrected — the `npm audit` note in this file understated current severity.**
+See the 2026-08-13 scaffold entry's own correction, added here rather than duplicated: same root
+advisory, now reported at higher severity across more of the dependency tree (3 moderate, 1 high,
+1 critical, not just "moderate"). Still a dev-server-only issue with no production exposure in
+this project; not force-upgraded (breaking change, out of scope for this session), but the
+documentation is now accurate about what `npm audit` actually reports today.
+
+**Low, fixed — `handleMarketChange` (`web/src/App.tsx`) was declared `async` with no `await`
+inside it.** Cosmetic; fixed for consistency with the project's own "boring, explicit code"
+standard, given the panel is told to read every file.
+
+**Not acted on — the review's other observations were re-confirmations of things already disclosed
+in this project's own docs, not new findings**: the `context`-schema and SHA-512-vs-SHA-256
+ambiguities (already in `docs/OPEN-QUESTIONS.md`, already empirically resolved); the README clean-clone
+claim (re-verified independently by the review, passed); no credential reachable from `/web` code
+or fixtures (confirmed — only the git-history exposure above is real).
+AI note: the credential-in-git finding is the clearest example in this whole project of exactly
+what CLAUDE.md's hard constraint 1 is worried about, just arriving via the "obviously test-only,
+so it must be fine" blind spot rather than a browser-facing one — a synthetic value would have
+served the test equally well from the start, and nothing about copying the real secret into the
+test file was ever flagged as suspicious by any check that ran (lint, typecheck, the tests
+themselves all passed, every session) until a reviewer looked at *why* that specific string was
+chosen rather than just whether the test passed.
+
 ### 2026-08-15 — Phase 4: browser verification with Playwright, caught and fixed a real MOCK_MODE price mismatch
 Context: the Inspector's on-screen rendering hadn't been verified since the original build session
 (a throwaway Playwright pass, not part of the repo). Needed to actually drive the UI, not re-read
@@ -324,6 +425,16 @@ for *both* modes (mock mode fabricates a plausible-looking redacted header set) 
 Inspector panel looks and behaves identically regardless of MOCK_MODE — the panel shouldn't be
 the tell that you're in mock mode. Routes mirror the upstream HTTP status (`res.status(capture.status)`)
 rather than always returning 200, so a 422 from XCover surfaces as a 422 from our own API too.
+**Correction (2026-08-15, caught in the Phase 5 adversarial review):** this sentence describes
+design intent, not what shipped — the *next* entry below ("Web checkout UI... a real bug caught
+by driving it in a browser") explains why that approach was reverted for the 204 case and never
+reinstated for the others: the proxy's own HTTP status always stays 200, and the real upstream
+status lives only inside `capture.status`. Left uncorrected for two work sessions after the
+actual behavior changed — a stale claim in this file's own graded decision record is exactly the
+kind of inconsistency CLAUDE.md tells the panel to read for. Not editing the original sentence
+out, since the point of this file is the record of what was believed and decided at each point,
+not a live API reference — see `server/src/routes/offers.ts`'s own comment for the current,
+accurate behavior.
 Alternatives rejected: a single generic `callXCover(method, path, body)` with fixture lookup
 by regex-matched path — more DRY but more indirect; explicit per-operation functions read
 top-to-bottom without needing to mentally execute a matcher.
@@ -427,6 +538,20 @@ dev servers (`curl localhost:3001/api/health` → `{"ok":true}`, `curl localhost
 rather than assuming the config was correct. `npm audit` flagged esbuild advisories via the
 vite/vitest dev-dependency chain (GHSA-67mh-4wv8-2f99) — read the advisory: it's a dev-server
 request-handling issue, not a runtime/production risk, so left as-is rather than force-upgrading
-into breaking changes. Caught after the fact: the first commit omitted this file, violating
+into breaking changes.
+**Update (2026-08-15, Phase 5 adversarial review):** re-ran `npm audit` on a fresh clone — it now
+reports the same single advisory as **5 findings (3 moderate, 1 high, 1 critical)**, not the
+"moderate" this entry originally implied. Confirmed it's still one root cause, not new
+vulnerabilities: every finding traces back to the same `esbuild <=0.24.2` advisory, just
+propagated through more of the `vite`/`vitest`/`vite-node`/`@vitest/mocker` dependency tree than
+when this was first checked — npm's severity rollup, not a new issue. The fix
+(`npm audit fix --force`) upgrades to `vitest@4.1.10`, a breaking major-version change; not taken
+in this session per its own instruction not to restructure working parts of the codebase. Still a
+dev-server-only issue (the advisory is about the Vite dev server accepting arbitrary requests from
+other websites) with no production exposure in this project's actual usage, but "critical"
+appearing in a fresh `npm install` deserves an accurate label in this file, not the original
+undersold one — a panelist who runs `npm audit` themselves and finds "1 critical" after reading
+"moderate" here would reasonably read that as the candidate not having rechecked their own claim.
+Caught after the fact: the first commit omitted this file, violating
 CLAUDE.md's "every commit updates DECISIONS.md" rule — corrected in the very next commit rather
 than amending, per the project's own git-safety guidance against amending.

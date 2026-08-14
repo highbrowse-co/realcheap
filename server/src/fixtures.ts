@@ -27,6 +27,28 @@ export interface MockMatchedProduct {
   currency: string;
   price: number;
   priceFormatted: string;
+  priceWithoutTax: number;
+  priceWithoutTaxFormatted: string;
+  tax: number;
+  taxFormatted: string;
+}
+
+interface MarketFixtureShape {
+  currency: string;
+  products: Array<{
+    id: string;
+    details: {
+      finance: {
+        price: {
+          total_amount: number;
+          total_amount_without_tax: number;
+          total_amount_formatted: string;
+          total_amount_without_tax_formatted: string;
+        };
+        tax: { total_amount: number; total_amount_formatted: string };
+      };
+    };
+  }>;
 }
 
 /**
@@ -36,23 +58,28 @@ export interface MockMatchedProduct {
  * $585.85 US 2yr plan showed a confirmed price of $1321.95 — the exact
  * market/quantity contradiction Phase 2 fixed for Create Offer, one step
  * later in the flow. This searches every recorded market fixture for the
- * product id the frontend is confirming, so the confirmed price can match
- * what was actually offered. Still just matching against captured traffic —
- * no rating logic, no price the sandbox didn't actually return.
+ * product id the frontend is confirming, so the confirmed price (and tax
+ * breakdown — a first pass at this only patched the top-level price and left
+ * a GBP-labeled booking showing "US$" tax figures, caught in the Phase 5
+ * adversarial review) can match what was actually offered. Still just
+ * matching against captured traffic — no rating logic, no price the sandbox
+ * didn't actually return.
  */
 export async function findMarketProductById(quoteId: string): Promise<MockMatchedProduct | null> {
   const keys = await listFixtureKeys("markets", "create-offer-");
   for (const key of keys) {
-    const offer = await loadFixture<{
-      currency: string;
-      products: Array<{ id: string; details: { finance: { price: { total_amount: number; total_amount_formatted: string } } } }>;
-    }>(`markets/create-offer-${key}`);
+    const offer = await loadFixture<MarketFixtureShape>(`markets/create-offer-${key}`);
     const product = offer.products.find((p) => p.id === quoteId);
     if (product) {
+      const { price, tax } = product.details.finance;
       return {
         currency: offer.currency,
-        price: product.details.finance.price.total_amount,
-        priceFormatted: product.details.finance.price.total_amount_formatted,
+        price: price.total_amount,
+        priceFormatted: price.total_amount_formatted,
+        priceWithoutTax: price.total_amount_without_tax,
+        priceWithoutTaxFormatted: price.total_amount_without_tax_formatted,
+        tax: tax.total_amount,
+        taxFormatted: tax.total_amount_formatted,
       };
     }
   }

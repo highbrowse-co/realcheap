@@ -252,16 +252,20 @@ function redact(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
-// Found by actually driving MOCK_MODE in a browser (Phase 4), not by reading
-// the code: confirming any plan always showed the one static fixture's price
-// ($1321.95) regardless of which plan/market was actually offered and
-// selected — the same contradiction Phase 2 fixed for Create Offer, one step
-// later in the flow. This keeps the static confirm-offer.json fixture as the
-// booking template (id, coi, policyholder shape, etc. — none of that is
-// derivable from the request) but overrides the price fields with whatever
-// product the customer actually selected, matched by id against the market
-// fixtures. Falls back to the static fixture's own price unmatched (e.g. an
-// id that isn't from any recorded fixture) rather than erroring.
+// Found by actually driving MOCK_MODE in a browser (Phase 4), then found
+// INCOMPLETE by the Phase 5 adversarial review: the first pass here only
+// patched the top-level price, so a GBP booking showed a real GBP total next
+// to "US$" tax/premium figures pulled from the static fixture untouched —
+// a currency-mismatched response the Inspector presented as a normal 200
+// with no disclaimer, which is precisely the failure mode the Inspector
+// exists to catch. This now overrides every currency-shaped field (price,
+// tax, premium) from the matched product, echoes back the real requested
+// quote id and the customer's actual submitted policyholder details instead
+// of the fixture's hardcoded "Jamie Rivera", and nulls out `commission`
+// rather than leave a stale dollar figure next to a different currency — no
+// market fixture reliably has real commission data (Phase 3: it's null
+// without `extra_fields=commission`, which Create Offer isn't called with
+// here), so null is the honest value, not a guess.
 async function mockedConfirmOffer(
   path: string,
   body: ConfirmOfferRequest
@@ -276,9 +280,32 @@ async function mockedConfirmOffer(
         currency: matched.currency,
         total_price: matched.price,
         total_price_formatted: matched.priceFormatted,
-        quotes: base.quotes.map((q, i) =>
-          i === 0 ? { ...q, price: matched.price, price_formatted: matched.priceFormatted } : q
-        ),
+        total_tax: matched.tax,
+        total_tax_formatted: matched.taxFormatted,
+        total_premium: matched.priceWithoutTax,
+        total_premium_formatted: matched.priceWithoutTaxFormatted,
+        policyholder: { ...body.policyholder },
+        quotes: base.quotes.map((q, i) => {
+          if (i !== 0) return q;
+          return {
+            ...q,
+            id: requestedQuoteId,
+            price: matched.price,
+            price_formatted: matched.priceFormatted,
+            tax: {
+              total_tax: matched.tax,
+              total_amount_without_tax: matched.priceWithoutTax,
+              total_tax_formatted: matched.taxFormatted,
+              total_amount_without_tax_formatted: matched.priceWithoutTaxFormatted,
+            },
+            commission: {
+              partner_commission: null,
+              total_commission: null,
+              partner_commission_formatted: null,
+              total_commission_formatted: null,
+            },
+          };
+        }),
       }
     : base;
 
@@ -321,9 +348,75 @@ export function optOutOffer(offerId: string) {
     : request<Record<string, never>, null>("POST", path, {});
 }
 
+// Phase 5 adversarial review: this was fully static — cancelling any booking
+// returned fixtures/cancel-booking.json verbatim, a different customer
+// ("Alex Chen") and a refund figure unrelated to whatever was actually just
+// booked. That fixture is the one meant to demonstrate CLAUDE.md scope item
+// 6 (avoiding duplicate compensation on cancellation) — showing an unrelated
+// customer's refund undermines the one demo it exists for. Overrides
+// currency/refund figures from the matched product (same lookup as confirm),
+// echoes the real requested quote id, and nulls the policyholder rather than
+// show a fabricated identity — Cancel Booking's request never includes
+// policyholder details at all, so there is no real value to show here, only
+// the fixture's leftover one from a different session.
+async function mockedCancelBooking(
+  path: string,
+  body: CancelBookingRequest
+): Promise<XCoverResult<CancelBookingResponse>> {
+  const base = await loadFixture<CancelBookingResponse>("cancel-booking");
+  const requestedQuoteId = body.quotes[0]?.id;
+  const matched = requestedQuoteId ? await findMarketProductById(requestedQuoteId) : null;
+
+  const data: CancelBookingResponse = matched
+    ? {
+        ...base,
+        currency: matched.currency,
+        total_refund: matched.price,
+        total_refund_formatted: matched.priceFormatted,
+        refund_amount: matched.price,
+        refund_amount_formatted: matched.priceFormatted,
+        policyholder: {
+          first_name: null,
+          last_name: null,
+          email: null,
+          phone: null,
+          country: null,
+        },
+        quotes: base.quotes.map((q, i) => {
+          if (i !== 0) return q;
+          return {
+            ...q,
+            id: requestedQuoteId,
+            price: matched.price,
+            refund_value: matched.price,
+            adjustment_fee: null,
+          };
+        }),
+      }
+    : base;
+
+  return {
+    data,
+    capture: {
+      method: "POST",
+      url: urlFor(path),
+      requestHeaders: mockRequestHeaders(),
+      requestBody: body,
+      status: 200,
+      responseBody: data,
+      latencyMs: 0,
+      mock: true,
+      networkError: null,
+      mockNote: matched
+        ? null
+        : `Cancelled quote id ${requestedQuoteId} wasn't found in any recorded market fixture — showing the static cancel-booking.json figures as a fallback, which don't relate to the booking actually being cancelled.`,
+    },
+  };
+}
+
 export function cancelBooking(bookingId: string, body: CancelBookingRequest) {
   const path = `bookings/${bookingId}/cancel`;
   return config.mockMode
-    ? mocked<CancelBookingResponse>("POST", path, body, "cancel-booking", 200)
+    ? mockedCancelBooking(path, body)
     : request<CancelBookingRequest, CancelBookingResponse>("POST", path, body);
 }

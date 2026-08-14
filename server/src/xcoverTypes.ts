@@ -55,7 +55,34 @@ export interface ConfirmOfferResponse {
   currency: string;
   total_price: number;
   total_price_formatted: string;
-  quotes: Array<{ id: string; status: string; price: number }>;
+  total_tax: number;
+  total_tax_formatted: string;
+  total_premium: number;
+  total_premium_formatted: string;
+  policyholder: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    country: string;
+  };
+  quotes: Array<{
+    id: string;
+    status: string;
+    price: number;
+    tax?: {
+      total_tax: number;
+      total_amount_without_tax: number;
+      total_tax_formatted: string;
+      total_amount_without_tax_formatted: string;
+    };
+    commission?: {
+      partner_commission: number | null;
+      total_commission: number | null;
+      partner_commission_formatted: string | null;
+      total_commission_formatted: string | null;
+    };
+  }>;
   coi: { url: string; pdf: string };
 }
 
@@ -68,7 +95,18 @@ export interface CancelBookingRequest {
 export interface CancelBookingResponse {
   id: string;
   status: string;
+  currency: string;
   total_refund: number;
   total_refund_formatted: string;
+  refund_amount: number;
+  refund_amount_formatted: string;
   cancellation_id: string | null;
+  policyholder: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+    country: string | null;
+  };
+  quotes: Array<{ id: string; price: number; refund_value: number; adjustment_fee: number | null }>;
 }
