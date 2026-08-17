@@ -365,8 +365,21 @@ export function optOutOffer(offerId: string) {
 // show a fabricated identity — Cancel Booking's request never includes
 // policyholder details at all, so there is no real value to show here, only
 // the fixture's leftover one from a different session.
+//
+// Phase 8 break-testing: even after the above fix, `id` (the booking id
+// itself) was still the static fixture's own ("3MDFV-CWSUL-INS") — visibly
+// different from the booking actually being cancelled, since Confirm's mock
+// id is a separate static fixture's id ("EWGGB-V2G64-INS"). Opt in, then
+// cancel, in MOCK_MODE (the zero-config default) and the Inspector shows two
+// different booking ids for what a viewer just watched happen to one
+// booking. Fixed by echoing back the real `bookingId` this call was actually
+// made for — already known from the request path, not invented — rather
+// than a synthesized new id, which this session has no live capture to
+// justify (see docs/REACHABLE-STATES.md for the related, *not* fixed here,
+// finding that Confirm's own id is static across every market/plan).
 async function mockedCancelBooking(
   path: string,
+  bookingId: string,
   body: CancelBookingRequest
 ): Promise<XCoverResult<CancelBookingResponse>> {
   const base = await loadFixture<CancelBookingResponse>("cancel-booking");
@@ -376,6 +389,7 @@ async function mockedCancelBooking(
   const data: CancelBookingResponse = matched
     ? {
         ...base,
+        id: bookingId,
         currency: matched.currency,
         total_refund: matched.price,
         total_refund_formatted: matched.priceFormatted,
@@ -423,6 +437,6 @@ async function mockedCancelBooking(
 export function cancelBooking(bookingId: string, body: CancelBookingRequest) {
   const path = `bookings/${bookingId}/cancel`;
   return config.mockMode
-    ? mockedCancelBooking(path, body)
+    ? mockedCancelBooking(path, bookingId, body)
     : request<CancelBookingRequest, CancelBookingResponse>("POST", path, body);
 }

@@ -1,5 +1,53 @@
 # Decisions
 
+### 2026-08-17 — Phase 8: pre-freeze pass, part 2 — break-testing found and fixed a Confirm/Cancel booking-id mismatch in MOCK_MODE
+Context: this session's brief asks for deliberate break-testing beyond the scripted demo path,
+driving the real UI with Playwright, and to fix only what crosses into "crashes, corrupts state,
+or would be visibly embarrassing in a live demo" — everything else gets reported, not patched.
+Drove the real app (MOCK_MODE, the zero-config default after Part 1 of this phase) through order
+deviations, market/quantity changes mid-flow, browser back/reload, two parallel tabs, rapid
+double-clicks, live/mock mode switching, out-of-range inputs, and malformed policyholder data.
+Full findings: `docs/REACHABLE-STATES.md` (untracked, per this session's brief — copied nowhere
+since it's genuinely internal, not candidate-facing material moving to another repo).
+**Found and fixed**: opting in then cancelling the same booking, in MOCK_MODE, showed two
+*different* booking ids — Confirm Offer's response (`EWGGB-V2G64-INS`, from the one real captured
+confirm fixture) versus Cancel Booking's response (`3MDFV-CWSUL-INS`, from the separate, unrelated
+real captured cancel fixture) — visible side by side in the Inspector for literally the same
+booking. This is the exact flow `docs/DEMO-SCRIPT.md` runs (steps 6 then 7) in the exact mode this
+app now defaults to with no setup, and it directly undermines the Inspector's specific job
+("first-class... how the panel validates that calls are real," CLAUDE.md) — the one feature this
+project can least afford to visibly contradict itself in. Crosses this session's fix bar: it's
+squarely "visibly embarrassing in a live demo," reachable on the scripted happy path itself, not
+just an edge case.
+**Fixed without fabricating anything**: `mockedCancelBooking` (`server/src/xcoverClient.ts`) now
+takes the real `bookingId` the call was actually made for (already known — it's the URL path
+parameter, not invented) and overrides the fixture's own static `id` with it, the same pattern
+already used for currency/price/tax on the same object. Verified live: confirm then cancel now
+show identical ids in the Inspector.
+**Found, not fixed, deliberately**: Confirm Offer's own booking `id` is *itself* static across
+every market/plan/session — every confirmation in MOCK_MODE shows the same `EWGGB-V2G64-INS`,
+because there is only one real captured Confirm Offer response in this repo's fixture set (unlike
+Create Offer, which has 35 real captures, one per market×quantity). Fixing this the same honest
+way Phase 2/5 fixed the equivalent Create Offer gap would mean capturing real Confirm Offer
+responses across markets live — not possible this session (no live credentials available in this
+environment; verified by actually trying, see `docs/REACHABLE-STATES.md`). The alternative,
+generating a synthetic-but-varying id, was rejected for the same reason Phase 2 rejected
+interpolating prices: it would be inventing a value CLAUDE.md's hard constraint 2 says not to
+invent, in the one file that's already been reviewed once for exactly this kind of thing (Phase 5).
+Reported, not patched, per this session's own instruction to leave "merely surprising" behavior
+alone and record it.
+Alternatives rejected: re-delegating Part 2 a second time to another background agent after the
+first attempt returned no deliverable — rejected in favor of driving the browser directly, since
+the failure mode (an agent that got confused mid-task with no way to recover the specific state it
+was in) is exactly the kind of thing that's cheaper to just redo carefully than to debug blind.
+AI note: a background subagent was launched first for this phase's browser-driving work, to keep
+the (expected to be large) Playwright transcript out of the main session's context. It returned
+"completed" with no `docs/REACHABLE-STATES.md` file on disk and a final message about a tool
+being "for /loop sessions specifically" — evidence it got sidetracked into an unrelated tool call
+rather than finishing the assigned task, not evidence about the app itself. Verified this by
+checking the filesystem directly (the file didn't exist) rather than trusting the "completed"
+status label, then redid Part 2's work directly rather than re-delegating blind a second time.
+
 ### 2026-08-17 — Phase 8: pre-freeze pass, part 4 — why-only comments, and `App.tsx`'s state model
 Context: this session's brief asks for comments at exactly five points — the HMAC signing
 construction and the fact that the signed string covers only the date; why the backend proxy
