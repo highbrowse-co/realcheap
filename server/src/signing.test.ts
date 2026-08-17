@@ -29,8 +29,8 @@ describe("signDate", () => {
 
 describe("buildAuthorizationHeader", () => {
   it("assembles the Signature header per authentication.md", () => {
-    expect(buildAuthorizationHeader("E3CCM-key", SECRET, DATE)).toBe(
-      `Signature keyId="E3CCM-key",algorithm="hmac-sha512",signature="${EXPECTED_SIGNATURE}"`
+    expect(buildAuthorizationHeader("test-key", SECRET, DATE)).toBe(
+      `Signature keyId="test-key",algorithm="hmac-sha512",signature="${EXPECTED_SIGNATURE}"`
     );
   });
 });
