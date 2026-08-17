@@ -6,6 +6,11 @@ import { createHmac } from "node:crypto";
  * URL-safe variant — using URL-safe base64 here would corrupt the '+' and '/'
  * characters and produce a signature XCover rejects), then URL-encode that base64
  * string for placement in the Authorization header.
+ *
+ * Notably, the signed string is only the date — not the method, path, or body.
+ * A stolen/replayed request is bounded by clock skew tolerance on the date header,
+ * not by binding the signature to what's actually being requested. That's XCover's
+ * scheme as documented, not a choice made here.
  */
 export function signDate(secret: string, date: string): string {
   const digest = createHmac("sha512", secret)

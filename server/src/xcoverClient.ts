@@ -1,3 +1,9 @@
+// This module exists because the whole reason a backend proxy is here at all:
+// XCover's HMAC auth needs the raw API secret to sign every request, and that
+// secret must never reach the browser (CLAUDE.md hard constraint 1). Every
+// function below runs server-side only; the frontend never imports this file
+// or sees XCOVER_API_KEY/XCOVER_API_SECRET in any form, only the already-
+// redacted `Capture` objects these functions return.
 import { buildAuthorizationHeader, rfc822Date } from "./signing.js";
 import { config } from "./config.js";
 import { findMarketProductById, listFixtureKeys, loadFixture } from "./fixtures.js";

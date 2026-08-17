@@ -1,5 +1,65 @@
 # Decisions
 
+### 2026-08-17 — Phase 8: pre-freeze pass, part 4 — why-only comments, and `App.tsx`'s state model
+Context: this session's brief asks for comments at exactly five points — the HMAC signing
+construction and the fact that the signed string covers only the date; why the backend proxy
+exists at all; the fail-open principle where it's implemented; why mock fixture selection keys on
+request parameters; every `ASSUMPTION` tag — and nowhere else, explaining *why*, never restating
+what the code already says.
+Choice: audited all five against what already existed in the code (four phases of prior work had
+already left substantial why-commentary behind) before adding anything. Three were already
+adequately covered and left untouched: the fail-open principle (`App.tsx`'s `Decision` type
+comment, `fetchOffer`'s catch-block comments, `index.ts`'s last-resort-net comment,
+`ARCHITECTURE.md`'s "Failure handling" section); why mock fixture selection keys on request
+parameters (the comment block directly above `mockedCreateOffer` in `xcoverClient.ts`, added
+Phase 2); the one `ASSUMPTION` tag that exists (`XCOVER_TIMEOUT_MS` in `xcoverClient.ts`, added
+Phase 1, already explains the 10s value's origin and what's untested about it). Two were genuinely
+missing and added here: `signing.ts`'s docblock now states explicitly that the signed string is
+only the date — not method, path, or body — and what that implies (a stolen/replayed request is
+bounded by clock-skew tolerance, not by the signature binding to what's actually being requested;
+this is XCover's documented scheme, not a choice made in this codebase). `xcoverClient.ts` now
+opens with why a backend proxy exists at all, rather than that fact only living in CLAUDE.md and
+`ARCHITECTURE.md`'s prose — the module itself now states it inline: XCover's HMAC auth needs the
+raw secret to sign every request, that secret must never reach the browser, and every function in
+the file runs server-side only.
+**`App.tsx` holding all flow state and every handler in one component** — the file this brief
+specifically asks for a DECISIONS.md entry on. This is deliberate for a prototype, not an
+oversight: one component with ~12 `useState` calls (market, quantity, offer, decision, booking,
+cancellation, policyholder, two error strings, Inspector entries, `alreadyRefunded`,
+`selectedProductId`) and four handlers (`fetchOffer`, `handleOptIn`, `handleDecline`,
+`handleCancel`) that each follow the same try/catch → check `networkError` → check `status >= 400`
+→ set state shape. CLAUDE.md caps architecture/styling effort at "what makes the checkout legible"
+for what is, today, a single linear flow with no branching paths a router or global store would
+help with — a decomposition would add indirection (action types, a reducer, prop-drilling or
+context) that a reader has to hold in their head *in addition to* the flow itself, for a flow small
+enough to read top-to-bottom as one file right now. This is the one architectural choice in the
+whole project closest to a coin flip rather than clearly correct: the file has grown across five
+build phases of additions without a structural pass, and a decomposition would probably read
+better today than it would have on day one.
+**What production decomposition would look like**, if this became a real, growing integration
+rather than a scoped demo: (1) the four handlers' shared shape (try → branch on
+`networkError`/`status`/`mockNote` → set state or error) is exactly what a `useReducer` with
+action types (`OFFER_REQUESTED`, `OFFER_SUCCEEDED`, `OFFER_FAILED`, `CONFIRM_SUCCEEDED`, …) or a
+small explicit state machine (the `Decision` type is already halfway to one) would collapse into
+one reducer function instead of four near-duplicate branches; (2) each XCover action
+(offer/confirm/decline/cancel) becomes its own hook (`useCreateOffer`, `useConfirmOffer`, …)
+wrapping the reducer dispatch plus its own loading/error slice, so `App.tsx` stops being where
+every network concern lives; (3) the product/market/quantity selector, the offer/decision card,
+and the Inspector become genuinely independent components communicating through the reducer's
+state and dispatch rather than through prop drilling from one parent; (4) the Inspector's
+`entries` log is a cross-cutting concern (every hook needs to append to it) and would move to a
+context or a dedicated capture-log store rather than living in the same `useState` array as
+checkout-specific state. None of this was built — it would be premature structure for a flow this
+size today, per CLAUDE.md's own "don't design for hypothetical future requirements" instruction —
+but the shape of it is the honest answer to "how would you decompose this."
+AI note: no code changed for the `App.tsx` entry — this restates and formalizes reasoning that
+`docs/WHY.md` (removed from the tracked repo in the previous phase of this same session) already
+worked out, since that file's job was exactly this question ("decisions a different engineer
+would reasonably have made differently"). Re-derived the production-decomposition paragraph fresh
+here rather than copy verbatim from the removed file's less detailed version, since this session's
+brief specifically asks for "the decomposition you would do for production," which the removed
+file didn't spell out to that level.
+
 ### 2026-08-17 — Phase 8: pre-freeze pass, part 3 — candidate-facing docs moved out, panel-language pass, limitations audit
 Context: `docs/PANEL-QA.md`, `docs/WEAKEST-POINTS.md`, `docs/CODE-TOUR.md`, `docs/WHY.md`, and
 `docs/DEMO-SCRIPT.md` were written for this specific panel event, not as project documentation a
