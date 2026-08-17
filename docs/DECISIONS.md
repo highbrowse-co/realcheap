@@ -11,27 +11,37 @@ complete history returned 26 findings. One is the already-known, already-documen
 `server/src/signing.test.ts` secret (Phase 5) — historical only, fixed in the current file, and
 covered by `docs/SCRUB-PLAN.md`, not touched again here per this session's explicit "do not scrub
 history" instruction. The other 25 were new: real `security_token` values — per-booking
-Certificate-of-Insurance access tokens XCover issued during live capture sessions — embedded in 8
-tracked fixture files (`fixtures/confirm-offer.json` and 7 files under `fixtures/probe/`),
-present since the commits that originally captured them (2026-08-13 through Phase 3). Never
-flagged in `WEAKEST-POINTS.md`, `OPEN-QUESTIONS.md`, or anywhere else before the blind review
-found it — a genuine miss in this project's own stated discipline about exactly this failure
-class, not a disclosed and accepted risk.
-**Redacted**: all 25 occurrences, across 4 distinct token values (some tokens repeat across
-multiple files — the same booking captured at different lifecycle stages shares one real token;
-the redacted versions preserve that same grouping, so a reader diffing two fixtures for the same
-booking still sees one consistent placeholder, not four unrelated ones). Replacement values keep
-the real tokens' shape (four dash-separated 5-character groups, e.g. `REDAC-TED00-00001-TOKEN`)
-but are unambiguously synthetic — no attempt to look like plausible real data, unlike the price/
-tax/currency fields Phase 2/4/5 populate from genuinely captured numbers. Confirmed no application
+Certificate-of-Insurance access tokens XCover issued during live capture sessions — embedded in
+tracked fixture files, present since the commits that originally captured them (2026-08-13
+through Phase 3). Never flagged in `WEAKEST-POINTS.md`, `OPEN-QUESTIONS.md`, or anywhere else
+before the blind review found it — a genuine miss in this project's own stated discipline about
+exactly this failure class, not a disclosed and accepted risk.
+**Redacted, in two passes — the second catching what the tool missed.** First pass, matching
+gitleaks' 25 findings: 8 files (`fixtures/confirm-offer.json` and 7 under `fixtures/probe/`), 4
+distinct token values. Then ran a plain `grep -rl security_token fixtures/` independent of
+gitleaks entirely, to check the tool's own coverage rather than trust it — and found **2 more
+files** (`fixtures/probe/idempotency-key-first.json`, `idempotency-key-repeat.json`, 10 more
+occurrences, 1 more distinct real token) that gitleaks' entropy-based `generic-api-key` rule
+simply never flagged, despite being the exact same shape and source as the 25 it did catch —
+gitleaks' entropy scoring isn't perfectly consistent across visually-identical strings, a real
+limitation of the tool, not of this project's use of it. **Final count: 35 occurrences across 10
+files, 5 distinct real tokens, all redacted.** Some tokens repeat across multiple files (the same
+booking captured at different lifecycle stages shares one real token); the redacted versions
+preserve that same grouping, so a reader diffing two fixtures for the same booking still sees one
+consistent placeholder, not unrelated ones per file. Replacement values keep the real tokens'
+shape (four dash-separated 5-character groups, e.g. `REDAC-TED00-00001-TOKEN`) but are
+unambiguously synthetic — no attempt to look like plausible real data, unlike the price/tax/
+currency fields Phase 2/4/5 populate from genuinely captured numbers. Confirmed no application
 code reads or branches on `security_token` anywhere (`grep -rn security_token server/src web/src
 scripts/` — zero results): it's inert passthrough data shown as-is in the Inspector's raw
-response body, never parsed. Re-ran `gitleaks detect` on the working tree afterward (`--redact`,
-this time, after an early re-check without it printed the real `.env` values into this session's
-own tool output by mistake — caught immediately, not repeated, `.env` itself excluded from the
-count since it's gitignored and correctly supposed to have real values): zero findings outside
-`.env`. Verified live (`npm run smoke`, `9/9`) and via a clean-clone MOCK_MODE Playwright pass
-after committing — nothing depends on the real token values, nothing broke.
+response body, never parsed. Final verification used a plain `grep`, not another `gitleaks` pass,
+specifically because the tool had already been shown to under-report on this exact class of
+string. Also re-ran `gitleaks detect` on the working tree (`--redact`, this time, after an early
+re-check without it printed the real `.env` values into this session's own tool output by
+mistake — caught immediately, not repeated, `.env` itself excluded from the count since it's
+gitignored and correctly supposed to have real values): zero findings outside `.env`. Verified
+live (`npm run smoke`, `9/9`) and via a clean-clone MOCK_MODE Playwright pass after committing —
+nothing depends on the real token values, nothing broke.
 **Why this happened at capture time, not render time, and why the hook didn't catch it**: the
 Inspector redacts headers (`X-Api-Key`, `Authorization`) at render time, in `xcoverClient.ts`,
 because every live call passes through that one function — a single choke point. Fixture files
