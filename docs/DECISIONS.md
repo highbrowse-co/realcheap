@@ -493,6 +493,18 @@ demonstrated working against live and already covered by Phase 1's error-surfaci
 is broken, so touching them would be scope creep against an explicit instruction, not hardening.
 Recorded here per the brief's own instruction to record deliberate non-fixes with reasoning
 rather than just doing them silently.
+**Correction (2026-08-17, Phase 9, caught by `docs/REACHABLE-STATES.md` #8 in the prior
+session):** calling the 422 path a "guard" overstates what `App.tsx` actually does with it. The
+422's body does contain the existing booking id in its message text, but `handleOptIn` never
+parses or uses it — on any `capture.status >= 400` it sets one generic string ("XCover rejected
+the confirmation (…) — see Inspector for details.") and stops. There is no recovery logic; a
+double-confirm just shows a rejection, exactly like any other 4xx. "Demonstrated working against
+live" was accurate (the call does go out and does get a real, non-crashing 422 back); "guard" was
+not — nothing in the code branches on or extracts the booking id from that response. Phase 9 made
+this moot for the common case anyway: `x-idempotency-key` now means a same-offer retry (double
+click or network-timeout retry) gets `409` with the real cached booking and is treated as success,
+not a 422 the user has to read a message about at all. Left the original sentence in place rather
+than rewritten, per this file's own rule.
 Alternatives rejected: reproducing the `423` race condition with concurrent requests — would
 need real parallelism (e.g. `Promise.all` with two truly simultaneous calls) for a documented
 edge case that doesn't affect this build either way; not worth the added live-API load for a
