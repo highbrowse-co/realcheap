@@ -1,5 +1,38 @@
 # Decisions
 
+### 2026-08-17 — Phase 8: pre-freeze pass, part 1 — zero-config MOCK_MODE, README rewrite, Node pinning
+Context: a code freeze is under 36 hours out. After the freeze a reviewer reads the repo and may
+run it, with no chance to ask what a refactor broke — this session's brief is explicit not to
+restructure anything, only to make the repo runnable and honest. First gap found: `config.ts`
+threw at import time if `XCOVER_API_DOMAIN`/`XCOVER_BASE_PATH`/`XCOVER_PARTNER_CODE` were unset,
+*even in MOCK_MODE* — so a reviewer who deleted `.env` (or never had one) couldn't start the
+server at all, despite MOCK_MODE needing no real credentials by design (hard constraint 4).
+Choice: `config.xcover.{domain,basePath,partnerCode}` now fall back to placeholders
+(`https://mock.invalid`, `/xcover/partners/`, `MOCK`) when `mockMode` is true, and stay behind
+`required()` — fail fast at startup, not a confusing 403 later — only for live mode. Verified by
+actually deleting `.env`, cloning the repo fresh into the scratchpad, `npm install && npm run
+dev`, and driving the full opt-in → cancel flow with a throwaway Playwright script: zero console
+errors, correct MOCK_MODE pricing rendered. Also renamed `signing.test.ts`'s test-only `keyId`
+from `"E3CCM-key"` to `"test-key"` (partner code has no bearing on the signature, so this cost
+nothing) and flagged `XCOVER_PARTNER_CODE` in `.env.example` as partner-specific and
+reviewer-replaceable, since domain/base-path are the shared XCover staging pattern but the
+partner code is this specific sandbox account's. Added `engines`/`.nvmrc` (Node 20+, matching the
+README's stated minimum) so a reviewer's Node version isn't one more silent variable. Rewrote
+`README.md` to open with the three run commands and what actually renders on screen, moving live
+setup and the probe/Postman tooling to later sections — the old README opened with a paragraph of
+doc pointers before showing how to run anything.
+Alternatives rejected: leaving `XCOVER_PARTNER_CODE=E3CCM` unflagged in `.env.example` — rejected
+because a reviewer using their own sandbox credentials, unaware the partner code is
+account-specific, would get confusing live-mode auth failures despite having "correct" API
+key/secret.
+AI note: this phase's own process was a good example of the rule it was applying to the
+code — the first four commits of this phase (config.ts, signing.test.ts, engines/.nvmrc, README)
+went in *without* a DECISIONS.md update, violating CLAUDE.md's "every commit updates
+docs/DECISIONS.md" rule directly. Caught on review before starting Part 3, corrected here in a
+dedicated follow-up commit rather than amending the earlier ones — same discipline as the
+2026-08-13 scaffold entry's own "caught after the fact... corrected in the very next commit"
+note.
+
 ### 2026-08-15 — Phase 7: comprehension on-ramp (CODE-TOUR, WHY, WEAKEST-POINTS)
 Context: the user won't have watched this built and has a limited block to defend every line —
 asked for a reading order (not a summary that makes reading the code optional), the arguable
