@@ -125,15 +125,17 @@ only `429` here, immediately after the preview call — see Probe 6.
 **Repeated confirm (double-click), two mechanisms, confirmed:**
 - **Without an idempotency key** (original finding, Session 1.5): confirming the same `offer_id`
   a second time returns `422`: `"Booking already exists for fast_quote_id {offer_id}. INS
-  number: {booking_id}"` (`fixtures/probe/confirm-repeat.json`) — the existing booking ID is
-  surfaced in the error text, enough for the frontend to recover without inventing new
-  error-handling behavior. This is what the app does today.
+  number: {booking_id}"` (`fixtures/probe/confirm-repeat.json`) — the existing booking ID is in
+  the error text, but the frontend never parsed or used it (`docs/DECISIONS.md`, Phase 9
+  correction). This was the app's only mechanism through Phase 8; it's now what a client that
+  sends no idempotency key at all would still hit, but the app itself no longer relies on it.
 - **With `x-idempotency-key`** (Phase 3, documented at `offers/api/idempotency-keys.md`):
   resending the identical key + body returns `409 Conflict` with the **same booking** in the
   body — not an error to route around, but the documented "treat as success" response, cached
-  for 48 hours (`fixtures/probe/idempotency-key-first.json`, `idempotency-key-repeat.json`). This
-  is the more correct mechanism; the app doesn't send this header today (see `docs/DECISIONS.md`
-  for why that wasn't changed this session). Both are now in `postman/`.
+  for 48 hours (`fixtures/probe/idempotency-key-first.json`, `idempotency-key-repeat.json`).
+  **Wired into the app in Phase 9** (`docs/DECISIONS.md`): `App.tsx` generates one key per
+  fetched offer and reuses it on retry; `409` is treated as success, `423` retries once. Both
+  mechanisms are also in `postman/`.
 
 **Duplicate-refund avoidance (`refund_required`)** — still inconclusive on this sandbox, as
 recorded in `docs/OPEN-QUESTIONS.md` #3 (partner has `xpay_refund_enabled: false`, so no payout
@@ -189,9 +191,9 @@ is confirmed to work against this sandbox account with real data, not assumption
 requires an escalation to Cover Genius before the build can start; the two items below are
 worth asking, but neither blocks anything already built or scoped.
 
-Two things worth flagging in the demo narration, not blockers:
+Two things worth disclosing wherever this is presented, not blockers:
 1. The opt-out-after-confirm behavior (Probe 5) means the frontend, not the API, is the source
-   of truth for "has this offer already been decided" — worth a sentence in the demo if
+   of truth for "has this offer already been decided" — worth a sentence of explanation if
    someone asks about double-submission safety.
 2. Pricing for identical inputs drifted over two days on this sandbox (Probe 3) — worth
    mentioning if someone asks why a screenshot's numbers don't match a live re-run.

@@ -60,10 +60,16 @@ flowchart TB
     FailOpen --> UI
 ```
 
-The API key and secret live only in `server/.env` (repo root `.env`, read via `config.ts`) and
-are used only inside `xcoverClient.ts`. The browser never sees them — every header the frontend
+The API key and secret live only in the repo root's `.env` (there is no separate `server/.env` —
+`server/src/config.ts` loads the root `.env` via a relative path) and
+are used only in server-side code that never ships to the browser — `xcoverClient.ts` (the app
+itself), plus standalone dev tooling that also signs live requests directly
+(`server/scripts/probe-schema.ts`, `scripts/probe/probe.ts`, `scripts/smoke-test.ts`). None of
+`/web` ever imports or references them. The browser never sees them — every header the frontend
 displays in the Inspector has already been redacted server-side before it leaves the process
-(see `redactHeaders` in `server/src/xcoverClient.ts`).
+(see `redactHeaders` in `server/src/xcoverClient.ts`). `MOCK_MODE` is the zero-config default
+(`config.ts`): these three env vars fall back to placeholders and aren't required at all unless
+`MOCK_MODE=false`, so a reviewer with no credentials can still run the full app.
 
 **The real lifecycle** the diagram's solid path represents: `POST /api/offers` (market +
 quantity) quotes both plans; the customer either confirms (`POST /api/offers/:id/confirm`,
@@ -71,7 +77,11 @@ quantity) quotes both plans; the customer either confirms (`POST /api/offers/:id
 confirmed booking can later be cancelled (`POST /api/bookings/:id/cancel`, with
 `refund_required` reflecting whether RealCheap already refunded the customer directly). All
 four are signed identically by `xcoverClient.ts` and captured identically for the Inspector,
-live or mocked.
+live or mocked. Confirm Offer additionally sends `x-idempotency-key` (one key generated per
+fetched offer, reused on retry): a resend of the identical key+body returns `409` with the
+original booking rather than a second one, treated as success rather than an error — the
+mechanism that makes a retry after a dropped connection safe, not just a disabled button while a
+request is outstanding (`docs/DECISIONS.md`, Phase 9).
 
 ## Failure handling
 

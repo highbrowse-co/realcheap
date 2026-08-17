@@ -1,5 +1,53 @@
 # Decisions
 
+### 2026-08-18 — Phase 11: documentation truth pass — two docs had gone stale describing pre-Phase-9 behavior
+Context: this session's brief asked whether every tracked doc still describes the code as it now
+is, specifically calling out whether `ARCHITECTURE.md` covers idempotency handling and whether
+the docs this project treats as its technical reference (`API-NOTES.md`, `SANDBOX-CAPABILITIES.md`)
+still separate confirmed-by-testing from assumed-from-docs correctly. Ran in parallel with a
+blind adversarial review (Phase 12, this same date) that independently found the same two stale
+claims — worth noting because it's a real cross-check, not a coincidence I'm asserting: two
+separate processes, one with zero context from the other, converged on the same inaccuracy.
+**Found and fixed**: `docs/API-NOTES.md` and `docs/SANDBOX-CAPABILITIES.md` both still described
+`x-idempotency-key` as "not wired into the app this session... logged for a future pass" and "the
+app doesn't send this header today" — true when written (Phase 3), false since Phase 9 actually
+wired it in. Rewrote both sections to state current behavior (`App.tsx` generates one key per
+offer, `409` is success, `423` retries once) rather than the Phase 3 snapshot. `SANDBOX-CAPABILITIES.md`
+also still carried the overstated "existing booking ID surfaced in the error text, enough for the
+frontend to recover" claim that the Phase 9 correction had already fixed in `DECISIONS.md` but
+never backported here — fixed to match.
+**Found and fixed, smaller**: `docs/ARCHITECTURE.md`'s credential-scope sentence ("used only
+inside `xcoverClient.ts`") was never accurate even before this session — `server/scripts/probe-schema.ts`
+and `scripts/probe/probe.ts` already read the credentials directly, and Phase 10 added a third,
+`scripts/smoke-test.ts`. Broadened the sentence to name all of them rather than overclaim a
+single choke point. Also added the two facts `ARCHITECTURE.md` was missing entirely: `MOCK_MODE`
+being the zero-config default (Phase 8) and the `x-idempotency-key` mechanism (Phase 9) — both
+material to "what's built," not decoration.
+**Checked and left alone**: `docs/OPEN-QUESTIONS.md`'s six items are all still genuinely open —
+none has been resolved by anything built since they were written. `docs/README.md`'s claims were
+re-verified against an actual clean clone the same day they were written (Phase 8) and nothing
+material to those claims has changed since.
+**Interviewer-facing language re-grep**: this session's brief added "demo" to the words to check,
+beyond the panel/interview/candidate/reviewer set from Phase 8's pass. Left "demo" alone almost
+everywhere — it's accurate self-description (this genuinely is a demo checkout; the actual
+rendered UI copy says "XCover protection demo checkout") rather than audience-specific framing,
+unlike "panel"/"candidate" which name who's watching. The one pattern actually worth softening was
+"demo narration" (three instances, `OPEN-QUESTIONS.md`, `SANDBOX-CAPABILITIES.md`) — it
+specifically assumes a live spoken presentation is happening, not just that the app exists as a
+demo — reworded to "disclosed wherever this is presented" / "any accompanying explanation," which
+holds up whether or not anyone is narrating anything out loud.
+Alternatives rejected: touching `docs/DECISIONS.md`'s own historical entries for the same
+staleness — not applicable here, since the entries being checked against are the *reference* docs
+(`API-NOTES.md`, `SANDBOX-CAPABILITIES.md`, `ARCHITECTURE.md`), whose job is to describe current
+reality, not `DECISIONS.md`, whose established job (this file's own repeated rule) is the
+opposite — a record of what was believed at each point.
+AI note: caught the `ARCHITECTURE.md` credential-scope inaccuracy myself, independently, before
+seeing the blind review's Finding 8 confirm the same section needed a fix — good corroboration
+that the two processes weren't just echoing each other. The idempotency-doc staleness in
+`API-NOTES.md`/`SANDBOX-CAPABILITIES.md` was caught the same way — found during this session's
+own read-through before the blind review's report arrived, then independently confirmed by the
+review's Finding 3 citing the exact same two files and the exact same stale sentences.
+
 ### 2026-08-18 — Phase 10: `scripts/smoke-test.ts`, a tracked live integration smoke test
 Context: this session's brief asked for a runnable, tracked smoke test against live staging —
 `npm run smoke`, nine steps, PASS/FAIL with timing, non-zero exit on failure — as a real

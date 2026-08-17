@@ -129,14 +129,18 @@ Documented at `offers/api/idempotency-keys.md`. A client-supplied header; confir
   response is stored for **48 hours** and is meant to be treated by the client as a successful
   response, not an error.
 - A `423 Locked` is documented for a genuine race (two identical requests within the same short
-  window, before the first has finished processing) — not reproduced here; the two confirms in
-  the test were sequential, not concurrent.
+  window, before the first has finished processing) — still not reproduced, even under two
+  genuinely simultaneous requests (`Promise.all`, not sequential) with the identical key: got
+  `200` + `409`, same booking id, no duplicate created (`docs/DECISIONS.md`, Phase 9). This
+  sandbox may just not hit the race window at ordinary request latency.
 
-This is the *correct* double-click/retry mechanism — cleaner than the app's current behavior
-(no idempotency key sent, so a double-click surfaces as a 422 the frontend has to interpret).
-Not wired into the app this session (would touch `xcoverClient.ts`/`App.tsx`, and "do not
-rebuild anything that works" — the existing 422 handling is a demonstrated working double-click
-guard, just not the documented ideal one); logged for a future pass.
+**Wired into the app (Phase 9, `docs/DECISIONS.md`)**: `App.tsx` generates one
+`x-idempotency-key` per fetched offer (`crypto.randomUUID()`) and reuses it for every confirm
+attempt on that offer. `capture.status === 409` is treated as success (the cached original
+booking); `capture.status === 423` triggers one automatic retry with the same key after a 1.2s
+pause. This replaced the app's previous behavior (no idempotency key sent, a double-click
+surfacing as a `422` the user had to read a generic message about) rather than sitting alongside
+it — see `server/src/xcoverClient.ts`'s `confirmOffer` and `web/src/lib/api.ts`.
 
 ### Two-step cancellation: `preview` then `confirm_cancellation`
 

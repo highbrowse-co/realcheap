@@ -56,7 +56,7 @@ curve is applied server-side, which is expected and out of scope to reverse-engi
 
 **Still ask Cover Genius**: is there a document describing `E3CCM`'s offer schema(s) so future
 work doesn't depend on reverse-engineering 422 responses? What's the actual rating formula
-behind `quantity` (useful to explain in the demo beyond "the API applies its own curve")?
+behind `quantity` (useful to be able to explain beyond "the API applies its own curve")?
 
 ## 3. Duplicate-refund avoidance via `refund_required` — inconclusive in this sandbox
 
@@ -78,8 +78,8 @@ reconciliation purposes, not proof of money movement.
 
 **What this prototype does**: still sets `refund_required: false` on cancellation when the UI
 indicates RealCheap already refunded the customer, since it's the only documented field for
-this purpose and passes validation — but the Inspector panel and demo narration should be
-honest that its actual effect on payout couldn't be confirmed against this sandbox.
+this purpose and passes validation — but the Inspector panel and any accompanying explanation
+should be honest that its actual effect on payout couldn't be confirmed against this sandbox.
 
 **Ask Cover Genius directly**: does `refund_required: false` suppress an XPay-issued refund
 when a partner *does* have `xpay_refund_enabled: true`, or does it only affect internal
