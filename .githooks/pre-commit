@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Blocks a commit that looks like it's about to leak a credential. This
+# exists because it already happened once: the real XCover sandbox secret
+# was committed as a hardcoded HMAC test vector for two work sessions before
+# anyone noticed (docs/DECISIONS.md, Phase 5). Enable with:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner
+  exit $?
+fi
+
+echo "warning: gitleaks not found on PATH -- falling back to a basic check." >&2
+echo "Install gitleaks for real secret-detection coverage -- see README.md 'Developer setup'." >&2
+
+added=$(git diff --cached -U0 -- . ':!*.example*' | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+
+blocked=0
+
+if printf '%s\n' "$added" | grep -qE '^\+.*XCOVER_API_(KEY|SECRET)[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9]'; then
+  echo "blocked: a staged line assigns what looks like a real value to XCOVER_API_KEY/XCOVER_API_SECRET" >&2
+  blocked=1
+fi
+
+if printf '%s\n' "$added" | grep -qE '[A-Za-z0-9+/_=-]{40,}'; then
+  echo "blocked: a staged line contains a long high-entropy-looking string (40+ chars)" >&2
+  blocked=1
+fi
+
+if [ "$blocked" -eq 1 ]; then
+  echo "If this is a false positive, double-check it really isn't a secret, then either" >&2
+  echo "install gitleaks for an accurate check, or commit with --no-verify." >&2
+fi
+
+exit "$blocked"

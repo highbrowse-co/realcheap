@@ -60,6 +60,30 @@ npm run test   # server unit tests, including the HMAC-SHA512 signing test again
 npm run lint
 ```
 
+## Developer setup
+
+A pre-commit hook blocks commits that look like they're about to leak a credential — this
+project had a real one committed once (`docs/DECISIONS.md`, Phase 5), and this exists so that
+doesn't happen again. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs [`gitleaks`](https://github.com/gitleaks/gitleaks) (`gitleaks protect --staged`)
+if it's installed:
+
+```bash
+brew install gitleaks       # macOS
+# or see https://github.com/gitleaks/gitleaks#installing for other platforms
+```
+
+If `gitleaks` isn't on `PATH`, the hook falls back to a basic grep over the staged diff for the
+`XCOVER_API_KEY`/`XCOVER_API_SECRET` variable names assigned a literal value and for long
+high-entropy-looking strings — real coverage, but cruder than gitleaks' actual detection rules,
+so install gitleaks rather than relying on the fallback long-term. Project-specific rules live in
+`.gitleaks.toml`.
+
 ## Running against the live XCover sandbox
 
 By default the server runs in **MOCK_MODE** (`MOCK_MODE` unset, or explicitly `true`), which

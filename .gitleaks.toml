@@ -1,0 +1,21 @@
+title = "RealCheap gitleaks config"
+
+[extend]
+useDefault = true
+
+# Defense-in-depth alongside gitleaks' default "generic-api-key" rule, which
+# already catches a genuinely high-entropy secret regardless of variable
+# name (verified: docs/DECISIONS.md, Phase 9). This rule catches the
+# narrower, project-specific case that rule can miss -- a real credential
+# assigned directly next to its actual variable name, even one that happens
+# to be shorter or less random-looking than a typical generated API key.
+[[rules]]
+id = "xcover-credential-assignment"
+description = "XCOVER_API_KEY/XCOVER_API_SECRET assigned a literal value"
+regex = '''(?i)XCOVER_API_(KEY|SECRET)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{8,}'''
+tags = ["xcover"]
+
+[allowlist]
+paths = [
+  '''^\.env\.example$''',
+]

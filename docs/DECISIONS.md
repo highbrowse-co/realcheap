@@ -1,5 +1,54 @@
 # Decisions
 
+### 2026-08-17 — Phase 9: pre-commit hook to prevent a credential-leak recurrence
+Context: this session's brief asked for a `gitleaks protect --staged` pre-commit hook, with a
+grep-based fallback if gitleaks isn't available, specifically to stop the Phase 5 credential-leak
+class of mistake from happening again.
+Choice: one hook (`.githooks/pre-commit`), not two separate tools — it checks for `gitleaks` on
+`PATH` at commit time and runs `gitleaks protect --staged --redact` if present, falling back to a
+grep over the staged diff for `XCOVER_API_(KEY|SECRET)` assigned a literal value and for
+40+-character high-entropy-looking runs if not. A raw `.git/hooks/pre-commit` isn't
+version-controlled, so it lives in a tracked `.githooks/` directory instead and is enabled via
+`git config core.hooksPath .githooks` — one command, no new dependency (no husky), documented in
+a new README "Developer setup" section.
+**Verified empirically, not assumed — and the first assumption was wrong.** Installed gitleaks
+(`brew install gitleaks`, not present in this environment beforehand) specifically to test the
+real path rather than trust the documented `gitleaks protect --staged` invocation blind. First
+test used a synthetic secret assigned to the XCover secret variable but shaped like readable
+text, not a real generated credential — gitleaks did **not** flag it, and the test commit went
+through. Not a broken hook: gitleaks' default `generic-api-key` rule gates on Shannon entropy, and
+a readable string with sequential digits scores too low. Re-tested with a
+`secrets.token_urlsafe(40)`-generated value (entropy 5.19) — correctly blocked (`exit 1`, commit
+did not go through). Added `.gitleaks.toml` with one custom rule
+(`xcover-credential-assignment`) matching the `XCOVER_API_KEY`/`XCOVER_API_SECRET` variable names
+directly, regardless of entropy — defense-in-depth for a real credential that happens to be
+shorter or less random-looking than gitleaks' generic heuristic expects, since the actual
+incident this hook exists to prevent was a real credential, not a test string. Allowlisted
+`.env.example` by path (its placeholder values would otherwise match the custom rule's shape) —
+verified that edit alone doesn't trip either rule. Then tested the **fallback** path by removing
+`gitleaks` from `PATH` (`PATH="/usr/bin:/bin"`) and running the hook directly: same synthetic
+secret correctly blocked (`exit 1`) by the grep fallback, with a message pointing at installing
+gitleaks for real coverage. Finally confirmed a legitimate commit (the hook files themselves)
+passes cleanly through the real, non-bypassed hook. All test artifacts (a throwaway file assigning
+a fake value to `XCOVER_API_SECRET`) were created outside of and removed before this session's
+actual commits — never landed in history. **The hook then caught something of its own**: the
+first draft of this very paragraph, describing the test in the literal `KEY=value` form, tripped
+the custom rule on its own prose when staged — a real, correct catch (the rule doesn't know the
+difference between documentation *about* the pattern and the pattern itself), fixed by rephrasing
+rather than by weakening the rule or allowlisting `docs/DECISIONS.md`, which is the one file that
+should never be exempted from this check.
+Alternatives rejected: a single grep-only hook with no gitleaks integration — rejected because
+this session's own first test proved a naive keyword/length grep alone is exactly the kind of
+check that misses a real credential shaped differently than expected; gitleaks' entropy-based
+detection is strictly better and worth the one-line `PATH` check to prefer it when available.
+Committing gitleaks as a vendored binary or npm dependency — rejected as adding a real dependency
+for tooling that's optional (the fallback exists precisely so the repo doesn't require it).
+AI note: the "gitleaks didn't catch my first test string" result is exactly the kind of finding
+this whole project's discipline exists to surface — an assumption ("gitleaks protect --staged
+will obviously block a fake secret") that turned out to be conditionally true, caught only by
+actually running it and reading the real exit code, not by trusting the documented command syntax
+was sufficient on its own.
+
 ### 2026-08-17 — Phase 9: fixed the double-click gap, the right way — in-flight guard plus `x-idempotency-key`
 Context: `docs/REACHABLE-STATES.md` #2 (previous session) ranked a rapid double-click on
 Opt-in/Decline/Cancel as the single most likely thing to go wrong in a live demo, and left it
