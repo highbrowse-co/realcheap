@@ -16,3 +16,10 @@ docs/DEMO-SCRIPT.md
 
 # Break-testing scratch notes — internal, not part of the submission artifact.
 docs/REACHABLE-STATES.md
+
+# Blind adversarial review notes — internal, not part of the submission artifact.
+docs/BLIND-REVIEW-2.md
+
+# Prepared-but-not-executed git history scrub plan — internal, references
+# blob hashes but never the actual credential; still doesn't belong tracked.
+docs/SCRUB-PLAN.md
