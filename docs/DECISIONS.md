@@ -1,5 +1,65 @@
 # Decisions
 
+### 2026-08-18 — Phase 12: full-history gitleaks scan, redacted 25 real security tokens in tracked fixtures
+Context: last session's blind adversarial review (Finding 2, recorded in `docs/BLIND-REVIEW-2.md`,
+untracked) found that Phase 9's gitleaks work only ever validated the pre-commit hook against a
+synthetic test string — nobody had run `gitleaks detect` across the actual working tree and full
+history to see what it would find in files already committed before the hook existed. It found
+real material.
+**Full scan, run and read this time**: `gitleaks detect --source . --log-opts="--all"` across
+complete history returned 26 findings. One is the already-known, already-documented
+`server/src/signing.test.ts` secret (Phase 5) — historical only, fixed in the current file, and
+covered by `docs/SCRUB-PLAN.md`, not touched again here per this session's explicit "do not scrub
+history" instruction. The other 25 were new: real `security_token` values — per-booking
+Certificate-of-Insurance access tokens XCover issued during live capture sessions — embedded in 8
+tracked fixture files (`fixtures/confirm-offer.json` and 7 files under `fixtures/probe/`),
+present since the commits that originally captured them (2026-08-13 through Phase 3). Never
+flagged in `WEAKEST-POINTS.md`, `OPEN-QUESTIONS.md`, or anywhere else before the blind review
+found it — a genuine miss in this project's own stated discipline about exactly this failure
+class, not a disclosed and accepted risk.
+**Redacted**: all 25 occurrences, across 4 distinct token values (some tokens repeat across
+multiple files — the same booking captured at different lifecycle stages shares one real token;
+the redacted versions preserve that same grouping, so a reader diffing two fixtures for the same
+booking still sees one consistent placeholder, not four unrelated ones). Replacement values keep
+the real tokens' shape (four dash-separated 5-character groups, e.g. `REDAC-TED00-00001-TOKEN`)
+but are unambiguously synthetic — no attempt to look like plausible real data, unlike the price/
+tax/currency fields Phase 2/4/5 populate from genuinely captured numbers. Confirmed no application
+code reads or branches on `security_token` anywhere (`grep -rn security_token server/src web/src
+scripts/` — zero results): it's inert passthrough data shown as-is in the Inspector's raw
+response body, never parsed. Re-ran `gitleaks detect` on the working tree afterward (`--redact`,
+this time, after an early re-check without it printed the real `.env` values into this session's
+own tool output by mistake — caught immediately, not repeated, `.env` itself excluded from the
+count since it's gitignored and correctly supposed to have real values): zero findings outside
+`.env`. Verified live (`npm run smoke`, `9/9`) and via a clean-clone MOCK_MODE Playwright pass
+after committing — nothing depends on the real token values, nothing broke.
+**Why this happened at capture time, not render time, and why the hook didn't catch it**: the
+Inspector redacts headers (`X-Api-Key`, `Authorization`) at render time, in `xcoverClient.ts`,
+because every live call passes through that one function — a single choke point. Fixture files
+are raw captured XCover response bodies, saved by throwaway probe scripts
+(`scripts/probe/probe.ts`, `server/scripts/probe-schema.ts`) that write whatever XCover actually
+returned, unredacted by design (the whole point of a fixture is to be a faithful capture). Nothing
+in that capture path ever redacts response *body* content — only request *headers*, which is a
+different code path entirely. And the pre-commit hook (Phase 9) only gates *new* commits from the
+moment `core.hooksPath` is set — it has no mechanism to retroactively scan a tree that was already
+committed before the hook existed, which is exactly the gap this session's full scan closed by
+actually running the tool that mechanism was missing, rather than assuming the hook's existence
+meant the repo was already clean.
+Alternatives rejected: scrubbing these 25 blobs out of git history alongside the API secret in
+`docs/SCRUB-PLAN.md` — explicitly out of scope this session ("do not scrub git history"); the
+redaction here only changes the *current* tree going forward, the same boundary every other fix
+this session respected.
+AI note: two real mistakes in this same phase, both caught and corrected before compounding. (1)
+Deleted the blind-review subagent's transcript file per direct instruction — a file at
+`~/.claude/projects/.../subagents/agent-....jsonl` that had captured the real secret's plaintext
+as a side effect of the review process itself, not from anything the app does. (2) Ran
+`gitleaks detect` against the working tree twice while re-verifying the redaction — the first
+time without `--redact`, which printed the real, current `.env` values (`XCOVER_API_KEY`,
+`XCOVER_API_SECRET`) directly into this session's own tool output, a direct instance of exactly
+what this whole session has been careful to avoid. Not repeated: immediately re-ran with
+`--redact` and filtered the JSON report programmatically instead of eyeballing verbose text
+output. Recorded here rather than quietly fixed and left out of the record, per this file's own
+purpose.
+
 ### 2026-08-18 — Phase 11: documentation truth pass — two docs had gone stale describing pre-Phase-9 behavior
 Context: this session's brief asked whether every tracked doc still describes the code as it now
 is, specifically calling out whether `ARCHITECTURE.md` covers idempotency handling and whether

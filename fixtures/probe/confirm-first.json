@@ -33,7 +33,7 @@
     "created_at": "2026-08-14T22:25:54.781177Z",
     "updated_at": "2026-08-14T22:25:54.781183Z",
     "pds_url": "https://xcover-staging.com/en-us/pds/Z9MMW-DTX22-INS",
-    "security_token": "3YrF8-qLRGl-TUSrz-lSpaV",
+    "security_token": "REDAC-TED00-00002-TOKEN",
     "quotes": [
       {
         "id": "4cf544d3-e8f4-4888-b60a-b4162f32ca9c",
@@ -114,8 +114,8 @@
       }
     ],
     "coi": {
-      "url": "https://xcover-staging.com/en-us/coi/Z9MMW-DTX22-INS?security_token=3YrF8-qLRGl-TUSrz-lSpaV",
-      "pdf": "https://xcover-staging.com/en-us/coi/Z9MMW-DTX22-INS.pdf?security_token=3YrF8-qLRGl-TUSrz-lSpaV"
+      "url": "https://xcover-staging.com/en-us/coi/Z9MMW-DTX22-INS?security_token=REDAC-TED00-00002-TOKEN",
+      "pdf": "https://xcover-staging.com/en-us/coi/Z9MMW-DTX22-INS.pdf?security_token=REDAC-TED00-00002-TOKEN"
     },
     "account_url": "https://xcover-staging.com/en-us/account?id=b3287140-6016-44c4-b724-40319141b29a&signup_token=wBl6T-xQ6tE-cvzV8-x1NaF&region=eu-central-1",
     "sign_up_url": "https://xcover-staging.com/en-us/account?id=b3287140-6016-44c4-b724-40319141b29a&signup_token=wBl6T-xQ6tE-cvzV8-x1NaF&region=eu-central-1",
@@ -144,8 +144,8 @@
     "total_tax_formatted": "US$17.06",
     "total_premium": 568.79,
     "total_premium_formatted": "US$568.79",
-    "fnol_link": "https://xcover-staging.com/en-us/account/claims/fnol?bookingID=Z9MMW-DTX22-INS&security_token=3YrF8-qLRGl-TUSrz-lSpaV",
-    "cancel_link": "https://xcover-staging.com/en-us/cancel/Z9MMW-DTX22-INS?security_token=3YrF8-qLRGl-TUSrz-lSpaV",
+    "fnol_link": "https://xcover-staging.com/en-us/account/claims/fnol?bookingID=Z9MMW-DTX22-INS&security_token=REDAC-TED00-00002-TOKEN",
+    "cancel_link": "https://xcover-staging.com/en-us/cancel/Z9MMW-DTX22-INS?security_token=REDAC-TED00-00002-TOKEN",
     "booking_agent": null,
     "fast_quote_id": "bfdc0a38-8ac0-42a8-9cd5-d793b36e6988"
   }

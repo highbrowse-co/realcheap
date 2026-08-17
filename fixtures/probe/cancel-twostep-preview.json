@@ -70,8 +70,8 @@
     },
     "pds_url": "https://xcover-staging.com/en-us/pds/RUVR3-CGEE7-INS",
     "coi": {
-      "url": "https://xcover-staging.com/en-us/coi/RUVR3-CGEE7-INS?security_token=uryTH-Vg4ot-dDkMP-Wi22E",
-      "pdf": "https://xcover-staging.com/en-us/coi/RUVR3-CGEE7-INS.pdf?security_token=uryTH-Vg4ot-dDkMP-Wi22E"
+      "url": "https://xcover-staging.com/en-us/coi/RUVR3-CGEE7-INS?security_token=REDAC-TED00-00004-TOKEN",
+      "pdf": "https://xcover-staging.com/en-us/coi/RUVR3-CGEE7-INS.pdf?security_token=REDAC-TED00-00004-TOKEN"
     },
     "created_at": "2026-08-14T22:59:14.937785Z",
     "updated_at": "2026-08-14T22:59:15.349056Z",
