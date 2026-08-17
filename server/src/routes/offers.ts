@@ -27,9 +27,11 @@ offersRouter.post(
 offersRouter.post(
   "/:offerId/confirm",
   asyncHandler(async (req, res) => {
+    const idempotencyKey = req.header("x-idempotency-key") ?? null;
     const { data, capture } = await confirmOffer(
       req.params.offerId,
-      req.body as ConfirmOfferRequest
+      req.body as ConfirmOfferRequest,
+      idempotencyKey
     );
     res.json({ booking: data, capture });
   })

@@ -74,12 +74,16 @@ export interface CancelBookingRequest {
   quotes: Array<{ id: string; reason_for_cancellation?: string }>;
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`/api${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...extraHeaders },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -104,10 +108,15 @@ export function createOffer(body: CreateOfferRequest) {
   return postJson<{ offer: OfferResponse | null; capture: Capture }>("/offers", body);
 }
 
-export function confirmOffer(offerId: string, body: ConfirmOfferRequest) {
+export function confirmOffer(offerId: string, body: ConfirmOfferRequest, idempotencyKey: string) {
+  // x-idempotency-key (offers/api/idempotency-keys.md): the documented-correct
+  // mechanism for a safe retry — a resend with the identical key + body gets
+  // XCover's cached original result (409) instead of creating a second
+  // booking. See capture.status handling in App.tsx for the 409/423 branches.
   return postJson<{ booking: BookingResponse; capture: Capture }>(
     `/offers/${offerId}/confirm`,
-    body
+    body,
+    { "x-idempotency-key": idempotencyKey }
   );
 }
 

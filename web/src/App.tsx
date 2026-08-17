@@ -43,6 +43,20 @@ export function App() {
   // failure: no state change, no message, just a dead click.
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Break-testing (docs/REACHABLE-STATES.md #2) found a rapid double-click on
+  // Opt-in/Decline/Cancel fired two real signed requests, silently in
+  // MOCK_MODE. This disables all three while any one is outstanding —
+  // additive, not a change to what state the flow can be in.
+  const [actionPending, setActionPending] = useState(false);
+
+  // One x-idempotency-key per fetched offer (offers/api/idempotency-keys.md),
+  // reused for every confirm attempt on that offer so a retry after a
+  // network timeout — not just a double-click — is safe: XCover returns the
+  // cached original booking (409) for a resend instead of a second one. A
+  // disabled button can't protect a request that's already in flight when
+  // the network drops; this is the mechanism that actually can.
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+
   const [entries, setEntries] = useState<CaptureEntry[]>([]);
   const addEntry = (label: string, capture: CaptureEntry["capture"]) =>
     setEntries((prev) => [...prev, { label, capture }]);
@@ -55,6 +69,7 @@ export function App() {
     setBooking(null);
     setCancellation(null);
     setActionError(null);
+    setIdempotencyKey(null);
   }
 
   function handleMarketChange(country: string) {
@@ -102,6 +117,7 @@ export function App() {
         return;
       }
       setOffer(offer);
+      setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       // postJson throws for a failure that never reached our own server at
       // all (browser-level network error). Same fail-open outcome as an
@@ -122,19 +138,35 @@ export function App() {
   }
 
   async function handleOptIn() {
-    if (!offer || !selectedProductId) return;
+    if (!offer || !selectedProductId || actionPending) return;
     setActionError(null);
+    setActionPending(true);
     try {
-      const { booking, capture } = await confirmOffer(offer.id, {
+      const key = idempotencyKey ?? crypto.randomUUID();
+      const confirmBody = {
         quotes: [{ id: selectedProductId }],
         policyholder: { ...policyholder, country: market.country },
-      });
+      };
+      let { booking, capture } = await confirmOffer(offer.id, confirmBody, key);
       addEntry("Confirm Offer (opt-in)", capture);
+
+      // 423: XCover is still processing an identical in-flight request for
+      // this same key — documented as transient, safe to retry once with
+      // the same key rather than surfaced as an error.
+      if (capture.status === 423) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        ({ booking, capture } = await confirmOffer(offer.id, confirmBody, key));
+        addEntry("Confirm Offer (opt-in, retry after 423)", capture);
+      }
+
       if (capture.networkError) {
         setActionError(`Could not reach XCover (${capture.networkError}). Protection was not confirmed — try again.`);
         return;
       }
-      if (capture.status >= 400) {
+      // 409: the identical key+body was already processed — XCover returns
+      // the cached original booking in the body. Documented as the
+      // "treat as success" response, not an error to route around.
+      if (capture.status >= 400 && capture.status !== 409) {
         setActionError(`XCover rejected the confirmation (${capture.status}) — see Inspector for details.`);
         return;
       }
@@ -142,12 +174,15 @@ export function App() {
       setDecision("confirmed");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Unexpected error confirming protection.");
+    } finally {
+      setActionPending(false);
     }
   }
 
   async function handleDecline() {
-    if (!offer) return;
+    if (!offer || actionPending) return;
     setActionError(null);
+    setActionPending(true);
     try {
       const { capture } = await optOutOffer(offer.id);
       addEntry("Opt-out Offer (decline)", capture);
@@ -162,12 +197,15 @@ export function App() {
       setDecision("declined");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Unexpected error recording the decline.");
+    } finally {
+      setActionPending(false);
     }
   }
 
   async function handleCancel() {
-    if (!booking) return;
+    if (!booking || actionPending) return;
     setActionError(null);
+    setActionPending(true);
     try {
       const { cancellation, capture } = await cancelBooking(booking.id, {
         preview: false,
@@ -191,6 +229,8 @@ export function App() {
       setCancellation(cancellation);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Unexpected error cancelling the booking.");
+    } finally {
+      setActionPending(false);
     }
   }
 
@@ -325,10 +365,10 @@ export function App() {
 
                 {actionError && <p className="error">{actionError}</p>}
                 <div className="row">
-                  <button onClick={handleOptIn} disabled={!selectedProductId}>
+                  <button onClick={handleOptIn} disabled={!selectedProductId || actionPending}>
                     {offer.content.positive_cta}
                   </button>
-                  <button className="secondary" onClick={handleDecline}>
+                  <button className="secondary" onClick={handleDecline} disabled={actionPending}>
                     {offer.content.negative_cta}
                   </button>
                 </div>
@@ -358,7 +398,7 @@ export function App() {
                       />
                       RealCheap already refunded this customer directly
                     </label>
-                    <button onClick={handleCancel}>Cancel booking</button>
+                    <button onClick={handleCancel} disabled={actionPending}>Cancel booking</button>
                     <p className="muted small">
                       Sets <code>refund_required: {String(!alreadyRefunded)}</code> on Cancel
                       Booking. See docs/OPEN-QUESTIONS.md for what this sandbox could and

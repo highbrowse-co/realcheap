@@ -67,7 +67,8 @@ function urlFor(path: string): string {
 async function request<TReq, TRes>(
   method: string,
   path: string,
-  body: TReq
+  body: TReq,
+  extraHeaders?: Record<string, string>
 ): Promise<XCoverResult<TRes>> {
   const url = urlFor(path);
   const date = rfc822Date(new Date());
@@ -81,6 +82,7 @@ async function request<TReq, TRes>(
     Date: date,
     "X-Api-Key": config.xcover.apiKey,
     Authorization: authorization,
+    ...extraHeaders,
   };
 
   const start = performance.now();
@@ -274,7 +276,8 @@ function redact(value: string): string {
 // here), so null is the honest value, not a guess.
 async function mockedConfirmOffer(
   path: string,
-  body: ConfirmOfferRequest
+  body: ConfirmOfferRequest,
+  idempotencyKey: string | null
 ): Promise<XCoverResult<ConfirmOfferResponse>> {
   const base = await loadFixture<ConfirmOfferResponse>("confirm-offer");
   const requestedQuoteId = body.quotes[0]?.id;
@@ -320,7 +323,9 @@ async function mockedConfirmOffer(
     capture: {
       method: "POST",
       url: urlFor(path),
-      requestHeaders: mockRequestHeaders(),
+      requestHeaders: idempotencyKey
+        ? { ...mockRequestHeaders(), "x-idempotency-key": idempotencyKey }
+        : mockRequestHeaders(),
       requestBody: body,
       status: 200,
       responseBody: data,
@@ -340,11 +345,24 @@ export function createOffer(body: CreateOfferRequest) {
     : request<CreateOfferRequest, CreateOfferResponse>("POST", "offers/", body);
 }
 
-export function confirmOffer(offerId: string, body: ConfirmOfferRequest) {
+// x-idempotency-key (offers/api/idempotency-keys.md, confirmed live): a
+// resend with the identical key + body returns 409 with the *same* cached
+// booking, not a new one — the documented-correct way to make a retry after
+// a network timeout or double-click safe, which a frontend disabled-button
+// guard alone can't do (a request already in flight when the network drops
+// has no button left to disable). App.tsx generates one key per offer and
+// reuses it for every confirm attempt on that offer, so any retry of "the
+// same confirm" is idempotent by construction.
+export function confirmOffer(
+  offerId: string,
+  body: ConfirmOfferRequest,
+  idempotencyKey: string | null
+) {
   const path = `offers/${offerId}/confirm/`;
+  const headers = idempotencyKey ? { "x-idempotency-key": idempotencyKey } : undefined;
   return config.mockMode
-    ? mockedConfirmOffer(path, body)
-    : request<ConfirmOfferRequest, ConfirmOfferResponse>("POST", path, body);
+    ? mockedConfirmOffer(path, body, idempotencyKey)
+    : request<ConfirmOfferRequest, ConfirmOfferResponse>("POST", path, body, headers);
 }
 
 export function optOutOffer(offerId: string) {

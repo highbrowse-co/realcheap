@@ -1,5 +1,63 @@
 # Decisions
 
+### 2026-08-17 — Phase 9: fixed the double-click gap, the right way — in-flight guard plus `x-idempotency-key`
+Context: `docs/REACHABLE-STATES.md` #2 (previous session) ranked a rapid double-click on
+Opt-in/Decline/Cancel as the single most likely thing to go wrong in a live demo, and left it
+unfixed on freeze-discipline grounds — a reasonable reading of "don't restructure," but the wrong
+call, since the instruction was about structural change, not about leaving a demo-risk bug
+unpatched when a small, additive fix exists. This session's brief asked for both layers: a
+frontend guard (catches the ordinary case, a genuine double-click) and `x-idempotency-key` on
+Confirm Offer (catches the case a button guard structurally cannot — a request already in flight
+when the network drops, where there's no button left to disable before the user's retry).
+Live had gone unverified since the Phase 5 credential cleanup and Phase 8's zero-config pass, so
+Part 1 of this session re-verified it first, blocking: a full create → confirm → cancel and a
+separate create → opt-out, both through the real UI with Playwright against
+`api.xcover-staging.com`, both clean (real booking `P94PU-XD93T-INS`, zero console errors, real
+statuses 200/200/200 and 200/204). Also re-ran `git grep` for credential-shaped strings across
+every tracked file and grepped `fixtures/` specifically for `Authorization`/`X-Api-Key` — nothing
+found beyond the same partially-redacted (`45Bc...a6b0`) pattern already established as
+intentional design, not a leak.
+**Choice — in-flight guard**: one `actionPending` boolean (`App.tsx`), set for the duration of
+`handleOptIn`/`handleDecline`/`handleCancel`, disabling all three buttons while any one is
+outstanding. Shared rather than three separate flags, since Opt-in and Decline render
+simultaneously on the same offer and firing one while the other is mid-flight is the same class of
+ambiguity as firing the same one twice. Purely additive — no change to what states the flow can be
+in, only to whether a button is clickable while a request for it is already outstanding. Verified
+live: a rapid double-click on Confirm fired exactly **one** `/confirm` request (down from two,
+confirmed via network-request counting in a Playwright pass), booking confirmed cleanly, zero
+console errors.
+**Choice — `x-idempotency-key` on Confirm Offer**: the app previously sent none (confirmed by
+reading `api.ts`/`xcoverClient.ts` before changing anything — not assumed). Added: `App.tsx`
+generates one key (`crypto.randomUUID()`) per fetched offer, reused for every confirm attempt on
+that offer, threaded through `web/src/lib/api.ts` → `POST /api/offers/:id/confirm`'s
+`x-idempotency-key` header → `server/src/routes/offers.ts` reads it → `xcoverClient.ts`'s
+`confirmOffer`/`request()` forward it to XCover unchanged. `capture.status === 409` is now treated
+as success (the documented "cached original result" response, not an error to route around);
+`capture.status === 423` triggers one automatic retry with the same key after a 1.2s pause, then
+falls through to normal error handling if it still fails. Verified live, both cases the brief
+asked for: (1) replaying an **identical key + body** directly (bypassing the UI, which never
+retries automatically today) returned `409` with the exact same `bookingId` as the first call —
+confirmed via `page.evaluate(fetch(...))` against the real running server. (2) Went further than
+asked and fired **two genuinely simultaneous** confirms (`Promise.all`, not sequential) with the
+identical key — got `200` + `409`, both carrying the **same** booking id, no duplicate booking
+created even under real concurrency. **423 still wasn't reproduced** even under genuine
+parallelism — consistent with the original Session 1.5 probe's note that it needs a tighter race
+than two ordinary concurrent requests achieve; the retry-on-423 code path is implemented per
+`offers/api/idempotency-keys.md` and exercised by nothing observed live this session, same honest
+gap the project has recorded before rather than claimed away.
+Alternatives rejected: leaving the double-click gap unfixed a second time — rejected because this
+session's brief specifically named it the wrong call last time, and the fix is additive (new state,
+new header, two new branches), not a restructure of anything.
+AI note: no credential value was ever read, echoed, or logged this session — `.env` was
+permission-denied to the Read tool for this session, and every check ("is MOCK_MODE actually
+false," "did live actually authenticate") was inferred from `/api/health` and real HTTP responses,
+never from the file's contents, matching this session's explicit instruction. One operational
+snag, not an app bug: repeated `npm run dev` restarts across this and the prior session left
+several orphaned `tsx watch`/`vite` processes still bound to old state in the background,
+eventually causing one restart to appear to hang; caught by checking `lsof`/`ps` directly rather
+than assuming the app was broken, cleaned up with a full `pkill` sweep, unrelated to any of the
+code changes above.
+
 ### 2026-08-17 — Phase 8: pre-freeze pass, part 2 — break-testing found and fixed a Confirm/Cancel booking-id mismatch in MOCK_MODE
 Context: this session's brief asks for deliberate break-testing beyond the scripted demo path,
 driving the real UI with Playwright, and to fix only what crosses into "crashes, corrupts state,
