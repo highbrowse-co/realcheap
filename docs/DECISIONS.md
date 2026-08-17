@@ -1,5 +1,52 @@
 # Decisions
 
+### 2026-08-18 — Phase 10: `scripts/smoke-test.ts`, a tracked live integration smoke test
+Context: this session's brief asked for a runnable, tracked smoke test against live staging —
+`npm run smoke`, nine steps, PASS/FAIL with timing, non-zero exit on failure — as a real
+submission artifact ("a partner-facing engineer would ship exactly this"), not throwaway probe
+tooling.
+Choice: `scripts/smoke-test.ts` at the repo root, importing `signDate`/`buildAuthorizationHeader`/
+`rfc822Date` directly from `server/src/signing.ts` rather than reimplementing them inline —
+unlike `scripts/probe/probe.ts` (explicitly throwaway, zero dependency on the app's build graph by
+design), this script is meant to stay correct as the app changes, so it should share the one
+signing implementation rather than risk drifting from it. `tsx` resolves the cross-workspace
+relative import fine (same mechanism `server/scripts/probe-schema.ts` already uses for its own
+in-workspace import of `signing.ts`). Steps 1-8 call XCover directly, bypassing `MOCK_MODE`
+entirely, matching the existing probe scripts' pattern. Step 9 is different in kind — it spawns
+the actual server (`server/src/index.ts`) as a child process on a free port, with `MOCK_MODE=false`
+and `XCOVER_API_DOMAIN` pointed at `https://this-host-does-not-exist.invalid` (an RFC 2606
+reserved TLD, so DNS failure is guaranteed rather than racy), and asserts the proxy still answers
+`200` with `capture.networkError` set and `/api/health` still reachable afterward — testing this
+app's own fail-open handling (Phase 1), not XCover's behavior.
+**Two things worth recording that surfaced only by actually running it, not by writing it:**
+(1) The booking from step 5/6 is a real live booking; left uncancelled, nine years of repeated
+`npm run smoke` runs before freeze would leave nine years of orphaned test bookings in the
+sandbox. Added an unnumbered cleanup step (preview → `confirm_cancellation`, using the
+`cancellation_id` step 8 already obtained) so every run cleans up after itself, matching the
+discipline the Session 1.5 probe already established for this project ("all test bookings created
+during probing were cancelled afterward"). (2) **Step 3's assertion is deliberately weaker than
+what "localised content" implies.** Ran it live against Germany (`country: "DE", language: "de"`)
+expecting to see German copy; the actual `content.heading` returned was "Back your buy with
+XCover protection" — plain English, unchanged from the US response. The step only asserts
+`currency === "EUR"` and that `content.heading` is non-empty, not that the text is actually
+localized, because it isn't, at least not for this market on this sandbox account. This is a real
+finding about the platform, not a smoke-test bug — flagged directly in Part 5 of this session's
+report rather than quietly asserting something the API doesn't actually do.
+Verified: ran twice against live, `9/9` steps passed both times, `exit 0`, both real bookings
+cleaned up (confirmed `cleanup: booking ... cancelled for real (status 200)` in the output both
+times). Credentials never printed — only the same first-4/last-4 redaction pattern used
+throughout this project (`45Bc...a6b0`), verified by reading the actual printed output.
+Alternatives rejected: testing step 9 by pointing the *live-calling* part of this script (steps
+1-8's own `fetch`) at an unreachable host — rejected because that would only prove `fetch()`
+throws on DNS failure, a fact about Node, not about this app; the actual thing worth testing is
+whether *this app's* `xcoverClient.ts`/`asyncHandler`/error middleware chain degrades the way
+Phase 1 built it to, which requires actually running the server.
+AI note: typechecked the script ad hoc (`tsc --noEmit` with the same compiler flags as
+`tsconfig.base.json`, since there's no project config covering `/scripts` — same as the existing
+probe scripts) before running it against live, catching one real type error
+(`cancellation_id: string | null` didn't fit a `string | undefined` local) before it could surface
+as a live-run crash instead of a caught compile error.
+
 ### 2026-08-17 — Phase 9: pre-commit hook to prevent a credential-leak recurrence
 Context: this session's brief asked for a `gitleaks protect --staged` pre-commit hook, with a
 grep-based fallback if gitleaks isn't available, specifically to stop the Phase 5 credential-leak

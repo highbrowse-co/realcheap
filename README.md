@@ -43,6 +43,8 @@ opt in, a cancellation demo appears under the confirmation.
                cancellation, and a Runner-drivable market matrix — verified via Newman.
 /scripts/probe Throwaway script for re-probing the live sandbox directly (signs and calls
                XCover, bypassing MOCK_MODE entirely).
+/scripts/smoke-test.ts  Tracked live integration smoke test (`npm run smoke`) — nine PASS/FAIL
+               steps against the real sandbox plus this app's own fail-open handling.
 /docs          DECISIONS.md, OPEN-QUESTIONS.md, ARCHITECTURE.md, API-NOTES.md,
                SANDBOX-CAPABILITIES.md
 ```
@@ -98,6 +100,21 @@ cp .env.example .env
 
 Then set `MOCK_MODE=false` in `.env` and restart `npm run dev`. No code changes needed either
 way — see `docs/DECISIONS.md` for why it's built this way.
+
+### Live integration smoke test
+
+```bash
+npm run smoke
+```
+
+Runs `scripts/smoke-test.ts` — nine steps against the real sandbox (auth, Create Offer for a
+USD and a EUR market, quantity-based rating, Confirm Offer with `x-idempotency-key` plus a
+replay to confirm the 409/same-booking behavior, Opt Out, a preview Cancel, and an unreachable-
+host check against this app's own server), each reported PASS/FAIL with timing. Needs real
+credentials in `.env` regardless of `MOCK_MODE` — it calls XCover directly, the same pattern as
+`server/scripts/probe-schema.ts`. Exits non-zero if any step fails. Creates one real booking and
+one real declined offer per run; the booking is cancelled again at the end so the sandbox isn't
+left with test artifacts.
 
 ## Re-probing the live sandbox
 
