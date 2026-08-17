@@ -48,7 +48,7 @@ Confirmed shape for `E3CCM`'s `cse-interview-retail` offer schema:
 This is a two-product offer (a "2 Year Plan" and "3 Year Plan" extended-warranty/protection
 product — `offer_schema: "cse-interview-retail"`, `policy_code: "CSEINTPR"`, underwriter
 "Acasta European Insurance Company Limited") — evidently a schema Cover Genius configured
-specifically for this interview exercise, not a generic public offer type.
+specifically for this sandbox account, not a generic public offer type.
 
 **quantity confirmed to affect rating**: `quantity: 1` → $663.68 (2yr plan, USD, $1200 retail
 value); `quantity: 3` → $1321.95. The scaling isn't linear (≈1.99×, not 3×) — some rating

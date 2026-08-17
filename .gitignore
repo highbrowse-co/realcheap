@@ -6,3 +6,13 @@ dist/
 *.tsbuildinfo
 CSE Interview Candidate Case Study - Retail China.pdf
 postman/xcover-realcheap.postman_environment.json
+
+# Candidate-facing submission docs — live in another repo, not project source.
+docs/PANEL-QA.md
+docs/WEAKEST-POINTS.md
+docs/CODE-TOUR.md
+docs/WHY.md
+docs/DEMO-SCRIPT.md
+
+# Break-testing scratch notes — internal, not part of the submission artifact.
+docs/REACHABLE-STATES.md

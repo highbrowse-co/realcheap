@@ -109,7 +109,7 @@ the exact commands.
 ## Out of scope
 
 The following were deliberately not built, per CLAUDE.md's scope boundary. They're described
-here to the level a panel would need to evaluate the design without shipped code.
+here to the level needed to evaluate the design without shipped code.
 
 ### Real-time SKU/category eligibility rules engine
 

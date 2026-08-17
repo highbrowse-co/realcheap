@@ -1,5 +1,52 @@
 # Decisions
 
+### 2026-08-17 — Phase 8: pre-freeze pass, part 3 — candidate-facing docs moved out, panel-language pass, limitations audit
+Context: `docs/PANEL-QA.md`, `docs/WEAKEST-POINTS.md`, `docs/CODE-TOUR.md`, `docs/WHY.md`, and
+`docs/DEMO-SCRIPT.md` were written for this specific panel event, not as project documentation a
+future engineer would expect to find in the repo — this session's brief has them move to another
+repo. `docs/REACHABLE-STATES.md` (Part 2 of this session, break-testing notes) is the same kind
+of internal, point-in-time artifact.
+Choice: copied all five to `/tmp/realcheap-panel-docs/` first, then `git rm --cached` (working
+copies stay on disk, untracked) and added all five plus `docs/REACHABLE-STATES.md` to
+`.gitignore`, so none of the six can be accidentally re-added later. Grepped every surviving doc
+and all source comments for "panel"/"interview"/"candidate"/"reviewer": left "Inspector panel"
+alone everywhere (a UI feature name, not commentary about an audience) and left every literal
+`cse-interview-retail`/`E3CCM` occurrence alone (real API field values and this sandbox's actual
+partner code — factual, not framing). Rewrote the handful that *were* audience framing rather
+than fact: `docs/ARCHITECTURE.md`'s "the level a panel would need to evaluate the design" →
+"the level needed to evaluate the design"; `docs/OPEN-QUESTIONS.md` and
+`docs/SANDBOX-CAPABILITIES.md`'s "configured specifically for this interview exercise" →
+"configured specifically for this sandbox account"; `docs/SANDBOX-CAPABILITIES.md`'s two
+"a panelist asks..." → "someone asks...". Deliberately left `docs/DECISIONS.md`'s own historical
+entries untouched — this file's established rule (see the 2026-08-15 "Server proxy" correction
+entry) is that it's "the record of what was believed and decided at each point, not a live
+reference"; scrubbing "panel" out of already-written history would misrepresent what actually
+happened (this project genuinely was built for a panel review) in the one file whose entire job
+is an honest record, and the session brief separately says not to scrub git history.
+**Limitations audit** (Part 3, item 7): confirmed every item in the now-untracked
+`WEAKEST-POINTS.md` still has a home in a tracked doc, so removing that file doesn't make the
+repo look cleaner than it is. #1 (credential in git history) and #2 (MOCK_MODE data integrity
+bugs, twice) are fully covered by this file's existing Phase 5 entry. #3 (duplicate-refund
+avoidance unverifiable on this sandbox) is covered by `docs/OPEN-QUESTIONS.md` #3. #4 (only one
+unit test in the whole project) and #5 (single-product/no-persistence shape doesn't obviously
+generalize) were **not** previously stated as limitations anywhere tracked — restated explicitly
+here rather than left to disappear along with `WEAKEST-POINTS.md`: this project has exactly one
+automated test (the signing vector); everything else (~90 live calls, Playwright passes, the
+Phase 5 adversarial review) was manual, one-time, and doesn't re-run on the next change, so a
+regression in the class Phase 4/5 already found once could reappear silently. And the
+market/quantity fixture-matching approach `fixtures.ts`/`xcoverClient.ts` use for MOCK_MODE is a
+convenience specific to having exactly one hardcoded product; it has no equivalent shape once
+there's a second product line, so "how would this extend to a real catalog" doesn't have a "this
+scales as-is" answer.
+Alternatives rejected: rewriting `docs/DECISIONS.md`'s historical entries to remove "panel"
+language for consistency with the rest of this pass — rejected for the reasons above; a
+newly-added *pointer* to a past decision isn't the same category of edit as rewriting the
+decision's own contemporaneous record.
+AI note: no code changed in this phase — five `git rm --cached` calls, six `.gitignore` lines,
+and eight prose edits across three files (`ARCHITECTURE.md`, `OPEN-QUESTIONS.md`,
+`SANDBOX-CAPABILITIES.md`), verified by re-grepping after editing rather than trusting the first
+pass caught everything.
+
 ### 2026-08-17 — Phase 8: pre-freeze pass, part 1 — zero-config MOCK_MODE, README rewrite, Node pinning
 Context: a code freeze is under 36 hours out. After the freeze a reviewer reads the repo and may
 run it, with no chance to ask what a refactor broke — this session's brief is explicit not to

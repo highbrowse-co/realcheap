@@ -26,7 +26,7 @@ case.**
   `policy_type_version: "1"` (`policy_type_slug: product_insurance_offer_engine_v1`,
   `policy_type_group_name: "retail"`, `policy_code: CSEINTPR`, underwriter "Acasta European
   Insurance Company Limited"), served under offer schema `cse-interview-retail` — evidently
-  configured specifically for this interview exercise (`offer_config_id:
+  configured specifically for this sandbox account (`offer_config_id:
   aeef88f5-c254-4397-b1e2-734aa29b8afc`), not a generic public offer type.
 - **No policy-type enumeration endpoint exists in the public docs** — checked the docs index
   (`llms.txt`) and the Offers API reference page; neither documents a "list policy types" call.
@@ -191,7 +191,7 @@ worth asking, but neither blocks anything already built or scoped.
 
 Two things worth flagging in the demo narration, not blockers:
 1. The opt-out-after-confirm behavior (Probe 5) means the frontend, not the API, is the source
-   of truth for "has this offer already been decided" — worth a sentence in the demo if a
-   panelist asks about double-submission safety.
+   of truth for "has this offer already been decided" — worth a sentence in the demo if
+   someone asks about double-submission safety.
 2. Pricing for identical inputs drifted over two days on this sandbox (Probe 3) — worth
-   mentioning if a panelist asks why a screenshot's numbers don't match a live re-run.
+   mentioning if someone asks why a screenshot's numbers don't match a live re-run.
