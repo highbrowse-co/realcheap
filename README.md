@@ -66,9 +66,8 @@ npm run lint
 
 ## Developer setup
 
-A pre-commit hook blocks commits that look like they're about to leak a credential — this
-project had a real one committed once (`docs/DECISIONS.md`, Phase 5), and this exists so that
-doesn't happen again. Enable it once per clone:
+A pre-commit hook blocks commits that look like they're about to leak a credential. Enable it
+once per clone:
 
 ```bash
 git config core.hooksPath .githooks
