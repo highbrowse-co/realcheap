@@ -18,7 +18,7 @@ empty **Inspector** panel on the right. Click **Get protection offer** — a rea
 out (served from `/fixtures` in this zero-config default, MOCK_MODE), the offer renders on the
 left, and the Inspector fills in on the right showing the exact request and response: method,
 URL, headers (API key and signature redacted), body, status, latency. Opt in or decline; if you
-opt in, a cancellation demo appears under the confirmation.
+opt in, a cancellation option appears under the confirmation.
 
 ## What you're looking at
 
@@ -31,6 +31,8 @@ opt in, a cancellation demo appears under the confirmation.
 - `docs/SANDBOX-CAPABILITIES.md` / `docs/API-NOTES.md` — what this specific sandbox account can
   do (confirmed vs. assumed) and the exact HMAC signing construction, precise enough to
   reimplement independent of this repo's TypeScript.
+- `docs/CONSIDERATIONS.md` — the partner's stated technical considerations mapped to what's
+  actually demonstrated live, built but unverifiable, or designed and not built.
 
 ## Project layout
 
@@ -46,7 +48,7 @@ opt in, a cancellation demo appears under the confirmation.
 /scripts/smoke-test.ts  Tracked live integration smoke test (`npm run smoke`) — nine PASS/FAIL
                steps against the real sandbox plus this app's own fail-open handling.
 /docs          DECISIONS.md, OPEN-QUESTIONS.md, ARCHITECTURE.md, API-NOTES.md,
-               SANDBOX-CAPABILITIES.md
+               SANDBOX-CAPABILITIES.md, CONSIDERATIONS.md
 ```
 
 ## Requirements

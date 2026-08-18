@@ -19,6 +19,7 @@ docs/REACHABLE-STATES.md
 
 # Blind adversarial review notes — internal, not part of the submission artifact.
 docs/BLIND-REVIEW-2.md
+docs/BLIND-REVIEW-3.md
 
 # Prepared-but-not-executed git history scrub plan — internal, references
 # blob hashes but never the actual credential; still doesn't belong tracked.

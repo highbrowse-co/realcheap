@@ -263,7 +263,7 @@ export function App() {
     <div className="page">
       <header>
         <h1>RealCheap</h1>
-        <p className="muted">XCover protection demo checkout</p>
+        <p className="muted">XCover protection checkout</p>
       </header>
 
       <main>
@@ -475,7 +475,7 @@ export function App() {
 
                 {!cancellation && (
                   <div className="cancel-box">
-                    <h3>Cancellation demo</h3>
+                    <h3>Cancellation</h3>
                     <label>
                       <input
                         type="checkbox"
@@ -486,9 +486,11 @@ export function App() {
                     </label>
                     <button onClick={handleCancel} disabled={actionPending}>Cancel booking</button>
                     <p className="muted small">
-                      Sets <code>refund_required: {String(!alreadyRefunded)}</code> on Cancel
-                      Booking. See docs/OPEN-QUESTIONS.md for what this sandbox could and
-                      couldn't confirm about that field's effect on payout.
+                      Cancelling the booking is what prevents duplicate compensation — the
+                      customer can't later claim on it. The checkbox above is separate: it sets{" "}
+                      <code>refund_required: {String(!alreadyRefunded)}</code>, telling XCover
+                      whether to also refund the premium (effect on actual payout unconfirmed on
+                      this sandbox).
                     </p>
                     {actionError && <p className="error">{actionError}</p>}
                   </div>

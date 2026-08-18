@@ -1,5 +1,76 @@
 # Decisions
 
+### 2026-08-18 — Phase 15: final pre-freeze pass — doc currency, UI copy, a third blind review
+Context: the last change before the history scrub and freeze, opened with an explicit, unusual
+instruction: the field audit two phases ago found three wrong field names, and all three were
+introduced by that same session's own rushed fix — "late changes are now a demonstrated source of
+new errors." This phase's own brief: change as little as possible, verify everything touched,
+prefer reporting over fixing.
+**Documentation currency sweep**: re-read all six tracked docs fresh against current code, looking
+specifically for four failure modes — behavior that's changed, references to now-untracked files,
+a resolved limitation still stated as open (or vice versa), and commit hashes the pending scrub
+will invalidate. Found and fixed two: `README.md`'s "What you're looking at" and "Project layout"
+sections both omitted `docs/CONSIDERATIONS.md`, tracked since two phases ago and never added to
+either list; and README's "a cancellation demo appears" line, fixed after this phase's own UI
+rename (below) rather than left to go stale the moment that rename landed. Found and **did not
+fix**, reported instead: `docs/DECISIONS.md` line ~714 cites commit hash `e072e9a`, which the
+pending scrub will invalidate — not currently wrong (the scrub hasn't run) and this file is
+append-only by its own rule, so touching it now would be premature on both counts; already
+anticipated in `docs/SCRUB-PLAN.md`'s own side-effects section. `API-NOTES.md`,
+`SANDBOX-CAPABILITIES.md`, `OPEN-QUESTIONS.md`, `ARCHITECTURE.md` were all re-read in full and
+found current — no new staleness beyond the two README fixes.
+**UI copy** (`web/src/App.tsx`, no layout/styling touched): (1) removed the on-screen
+`docs/OPEN-QUESTIONS.md` citation — a partner-facing prototype shouldn't name internal repo
+paths on screen. (2) Separated two mechanisms the copy had conflated: cancelling the booking
+(what actually prevents duplicate compensation — the customer can't later claim on a cancelled
+policy) versus `refund_required` (a separate, narrower decision about whether XCover also refunds
+the premium, whose effect on real payout remains unconfirmed on this sandbox per
+`docs/OPEN-QUESTIONS.md` #3). Deliberately did **not** carry this same reframing into
+`CONSIDERATIONS.md`/`OPEN-QUESTIONS.md` — those docs aren't factually wrong on this point, just
+less sharply separated than the new UI copy, and "change as little as possible" argues against an
+unprompted reframe of an already-defensible doc. (3) "XCover protection demo checkout" →
+"XCover protection checkout"; "Cancellation demo" → "Cancellation" — a partner-facing prototype
+shouldn't call its own checkout a demo on screen. (4) Swept the rendered UI (not source comments)
+for any other internal/candidate-facing language — grepped `docs/`, `fixtures/`, `.ts`, `server/`,
+`CLAUDE.md`, panel/interview/candidate/reviewer across every rendered component; every other match
+was inside a `//` comment, never rendered. Verified visually (Playwright, 1440×900): no overflow,
+no console errors, new copy renders and fits within the existing layout unchanged.
+**Third blind review** (`docs/BLIND-REVIEW-3.md`, untracked): ran while Parts 1-2 above were still
+in progress — it caught this session's own in-flight edits changing under it mid-review and
+reported that transparently rather than silently working around it, evaluating the committed
+state instead. Verified every concrete finding directly rather than transcribing on trust,
+including one genuinely new one: `mockedCancelBooking` (`server/src/xcoverClient.ts`) overrides
+`currency`/`total_refund`/`refund_amount`/`id`/`policyholder`/`quotes[]` from the matched market
+fixture but not `total_price`/`total_price_formatted` — confirmed live-reproducible (a GBP
+cancellation shows a correct `£454.43` refund next to a stale `US$0.00` total price, visible in
+the Inspector's raw response body). **Not fixed** — this session's fix criteria were explicit and
+narrow (credential exposure, a fabricated field in a tracked doc, or a broken clean clone); this
+bug is none of the three, so it's reported in `docs/BLIND-REVIEW-3.md` and here, not patched.
+Same for the review's other confirmed-real finding (MOCK_MODE's booking `id`/`coi`/`pds_url`/
+`created_at`/`fast_quote_id` staying static regardless of market) — already known
+(`docs/REACHABLE-STATES.md`, untracked), the review's contribution was noting it isn't in any
+*tracked* doc, not finding it fresh. Confirmed nothing met the fix bar: no fabricated field name
+found (the review independently spot-checked roughly a dozen of the prior phase's ~140 audited
+citations directly against fixtures), the clean clone works exactly as documented, and the
+credential-in-history finding is already maximally addressed short of the scrub itself, which
+stays a separate, manual, later step per every session's standing instruction.
+**Operational note, recurring**: confirming the credential finding again required the review
+subagent to run a command against pre-scrub history that printed the real secret's plaintext into
+its own report — the same class of incident as the previous blind review. Not reproduced anywhere
+in this entry or in `docs/BLIND-REVIEW-3.md`. The subagent's transcript file was deleted after
+recording the finding without the plaintext, matching the exact remediation already established
+and explicitly approved for this recurring situation two phases ago.
+Alternatives rejected: telling the review subagent which findings were already triaged as
+acceptable, to save it from re-finding them — explicitly rejected by this session's own brief
+("that is what stops a reviewer finding things"), and worth noting it worked: the review did
+independently re-surface the MOCK_MODE static-identity issue without being told it was known.
+AI note: this phase's own restraint was tested directly by its findings — a real, reproducible,
+easy-to-fix bug (#2 above) was found and *not* patched, on the strength of an explicit scope
+boundary rather than the usual instinct to fix what's found broken. Recording that choice plainly
+here rather than fixing it and explaining afterward is the point of "prefer reporting over
+fixing" — the previous phase's own postmortem on itself is exactly why this restraint mattered
+enough to hold to this time.
+
 ### 2026-08-18 — Phase 14: field-name audit, COI verification, pricing-inversion rewrite
 Context: Phase 13 found and fixed two fabricated field names in `docs/ARCHITECTURE.md`'s
 settlement section while sourcing evidence for `docs/CONSIDERATIONS.md`. This session's brief was
