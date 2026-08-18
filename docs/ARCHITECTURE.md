@@ -38,7 +38,7 @@ flowchart TB
     subgraph XCoverSide["Cover Genius"]
         XCover["XCover sandbox<br/>Create/Confirm/Opt-out/Cancel"]
         Webhook{{"Claims webhook receiver<br/>(not built)"}}
-        Settle{{"Settlement job<br/>reads partner.transaction_id<br/>(not built)"}}
+        Settle{{"Settlement job<br/>reads partner_transaction_id<br/>(not built)"}}
     end
 
     Elig -. "would gate: skip the<br/>offer call entirely" .-> Routes
@@ -157,18 +157,26 @@ real order management system").
 ### Settlement and reconciliation
 
 **What it would do**: periodically reconcile XCover's reported commission and premium totals
-(visible per-quote in the Confirm Offer / Cancel Booking responses this prototype already
-captures — `commission.partner_commission`, `total_premium`) against RealCheap's own ledger, to
-catch drift (a cancelled-but-not-refunded policy, a commission that never landed, etc.).
+against RealCheap's own ledger, to catch drift (a cancelled-but-not-refunded policy, a commission
+that never landed, etc.). Real fields for this exist and are already captured in this repo's
+fixtures — corrected here after checking the actual captures rather than trusting the field names
+this section previously cited: commission is `products[].details.finance.commission.total_amount`
+on Create Offer (only populated with `extra_fields=commission`, `docs/API-NOTES.md`;
+`fixtures/probe/extra-fields-test.json`), and `total_premium`/`total_premium_formatted` on Confirm
+Offer (top-level, `fixtures/confirm-offer.json`) — not `commission.partner_commission`, which was
+never a real field name.
 
 **Why out of scope**: needs a real ledger and a real settlement/payout cadence with Cover
 Genius, neither of which is meaningful to fake for a demo — a mock reconciliation job reconciling
 against itself proves nothing.
 
-**Where it would plug in**: a scheduled job reading `partner.transaction_id` (already a field on
-Create Offer's `partner` object, unused by this prototype) as the join key between RealCheap's
-order records and XCover's booking records, diffing totals, and flagging mismatches for manual
-review.
+**Where it would plug in**: a scheduled job reading `partner_transaction_id` (a top-level field on
+Confirm Offer's response, not nested under a `partner` object as this section previously said) as
+the join key between RealCheap's order records and XCover's booking records, diffing totals, and
+flagging mismatches for manual review. Worth noting as found, not glossed over: this field is
+`null` in every capture in this repo (`fixtures/confirm-offer.json` and others) — this sandbox
+account has never actually populated it, so the join key itself is unverified as a real
+mechanism, only present as a field in the response shape.
 
 ### Authentication, persistence, real order management
 

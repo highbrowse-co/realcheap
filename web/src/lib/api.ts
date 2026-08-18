@@ -31,6 +31,14 @@ export interface OfferResponse {
     negative_cta: string;
     extras: Record<string, string>;
     products: Array<{ id: string; title: string; description: string }>;
+    // Real fields on every captured response (fixtures/markets/*.json) that the
+    // UI previously discarded — deliberately optional here, not required: a
+    // different offer schema than cse-interview-retail may not return them,
+    // and every render site must degrade silently rather than assume presence.
+    credibility_message?: string;
+    negative_cta_warning?: string;
+    disclaimer_html?: string;
+    required_message?: string;
   };
 }
 

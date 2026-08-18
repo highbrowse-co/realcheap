@@ -11,11 +11,23 @@ import {
   type OfferResponse,
 } from "./lib/api";
 import { Inspector, type CaptureEntry } from "./components/Inspector";
+import { sanitizeHtml } from "./lib/sanitizeHtml";
 
 // "unprotected" is reached when Create Offer fails and the customer chooses to
 // continue anyway — the fail-open path (docs/ARCHITECTURE.md): RealCheap's
 // checkout must complete even when XCover is entirely unavailable.
 type Decision = "pending" | "confirmed" | "declined" | "unprotected";
+
+// content.sub_heading is currently the literal string "N/A" on every captured
+// response (fixtures/markets/*.json) — the schema returns it that way rather
+// than omitting it, so an absence/empty check alone isn't enough.
+function isUsableText(value: string | undefined): value is string {
+  return !!value && value.trim() !== "" && value.trim().toUpperCase() !== "N/A";
+}
+
+function hasEntries(value: Record<string, string> | undefined): value is Record<string, string> {
+  return !!value && Object.keys(value).length > 0;
+}
 
 export function App() {
   const [market, setMarket] = useState<Market>(MARKETS[0]);
@@ -239,6 +251,8 @@ export function App() {
     currency: market.currency,
   }).format(LAPTOP.retailValue * quantity);
 
+  const selectedProduct = offer?.products.find((p) => p.id === selectedProductId);
+
   return (
     <div className="page">
       <header>
@@ -309,68 +323,126 @@ export function App() {
 
             {offer && decision === "pending" && (
               <div className="offer-card">
-                <p>{offer.content.heading}</p>
-                {offer.products.map((product) => {
-                  const content = offer.content.products.find((p) => p.id === product.id);
-                  return (
-                    <label key={product.id} className="plan-option">
-                      <input
-                        type="radio"
-                        name="plan"
-                        checked={selectedProductId === product.id}
-                        onChange={() => setSelectedProductId(product.id)}
-                      />
-                      {content?.title ?? product.name} —{" "}
-                      {product.details.finance.price.total_amount_formatted}
-                    </label>
-                  );
-                })}
-                <p className="muted small">{offer.content.disclaimer}</p>
+                <p className="offer-heading">{offer.content.heading}</p>
 
-                <fieldset>
-                  <legend>Policyholder</legend>
-                  <div className="row">
-                    <input
-                      placeholder="First name"
-                      value={policyholder.first_name}
-                      onChange={(e) =>
-                        setPolicyholder({ ...policyholder, first_name: e.target.value })
-                      }
-                    />
-                    <input
-                      placeholder="Last name"
-                      value={policyholder.last_name}
-                      onChange={(e) =>
-                        setPolicyholder({ ...policyholder, last_name: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="row">
-                    <input
-                      placeholder="Email"
-                      value={policyholder.email}
-                      onChange={(e) =>
-                        setPolicyholder({ ...policyholder, email: e.target.value })
-                      }
-                    />
-                    <input
-                      placeholder="Phone"
-                      value={policyholder.phone}
-                      onChange={(e) =>
-                        setPolicyholder({ ...policyholder, phone: e.target.value })
-                      }
-                    />
-                  </div>
-                </fieldset>
+                {hasEntries(offer.content.extras) && (
+                  <ul className="extras-list">
+                    {Object.entries(offer.content.extras).map(([name, description]) => (
+                      <li key={name}>
+                        <strong>{name}</strong> {description}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="plan-list">
+                  {offer.products.map((product) => {
+                    const content = offer.content.products.find((p) => p.id === product.id);
+                    const selected = selectedProductId === product.id;
+                    return (
+                      <label key={product.id} className={`plan-option${selected ? " selected" : ""}`}>
+                        <input
+                          type="radio"
+                          name="plan"
+                          checked={selected}
+                          onChange={() => setSelectedProductId(product.id)}
+                        />
+                        <span className="plan-name">{content?.title ?? product.name}</span>
+                        <span className="plan-price">
+                          {product.details.finance.price.total_amount_formatted}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {selectedProduct && (
+                  <p className="total-line">
+                    {LAPTOP.name} {subtotal} + Protection{" "}
+                    {selectedProduct.details.finance.price.total_amount_formatted} ={" "}
+                    <strong>
+                      {new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: offer.currency,
+                      }).format(
+                        LAPTOP.retailValue * quantity + selectedProduct.details.finance.price.total_amount
+                      )}
+                    </strong>
+                  </p>
+                )}
+
+                {isUsableText(offer.content.credibility_message) && (
+                  <p className="muted small credibility">{offer.content.credibility_message}</p>
+                )}
+
+                {isUsableText(offer.content.disclaimer_html) ? (
+                  <div
+                    className="muted small"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(offer.content.disclaimer_html!) }}
+                  />
+                ) : (
+                  isUsableText(offer.content.disclaimer) && (
+                    <p className="muted small">{offer.content.disclaimer}</p>
+                  )
+                )}
+
+                {selectedProductId && (
+                  <fieldset>
+                    <legend>Policyholder</legend>
+                    <div className="row">
+                      <input
+                        placeholder="First name"
+                        value={policyholder.first_name}
+                        onChange={(e) =>
+                          setPolicyholder({ ...policyholder, first_name: e.target.value })
+                        }
+                      />
+                      <input
+                        placeholder="Last name"
+                        value={policyholder.last_name}
+                        onChange={(e) =>
+                          setPolicyholder({ ...policyholder, last_name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="row">
+                      <input
+                        className="wide"
+                        placeholder="Email"
+                        value={policyholder.email}
+                        onChange={(e) =>
+                          setPolicyholder({ ...policyholder, email: e.target.value })
+                        }
+                      />
+                      <input
+                        placeholder="Phone"
+                        value={policyholder.phone}
+                        onChange={(e) =>
+                          setPolicyholder({ ...policyholder, phone: e.target.value })
+                        }
+                      />
+                    </div>
+                  </fieldset>
+                )}
 
                 {actionError && <p className="error">{actionError}</p>}
-                <div className="row">
-                  <button onClick={handleOptIn} disabled={!selectedProductId || actionPending}>
-                    {offer.content.positive_cta}
-                  </button>
-                  <button className="secondary" onClick={handleDecline} disabled={actionPending}>
-                    {offer.content.negative_cta}
-                  </button>
+                <div className="row cta-row">
+                  <div className="cta-group">
+                    <button onClick={handleOptIn} disabled={!selectedProductId || actionPending}>
+                      {offer.content.positive_cta}
+                    </button>
+                    {!selectedProductId && isUsableText(offer.content.required_message) && (
+                      <p className="muted small">{offer.content.required_message}</p>
+                    )}
+                  </div>
+                  <div className="cta-group">
+                    <button className="secondary" onClick={handleDecline} disabled={actionPending}>
+                      {offer.content.negative_cta}
+                    </button>
+                    {isUsableText(offer.content.negative_cta_warning) && (
+                      <p className="muted small">{offer.content.negative_cta_warning}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

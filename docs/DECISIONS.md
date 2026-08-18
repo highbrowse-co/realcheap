@@ -1,5 +1,102 @@
 # Decisions
 
+### 2026-08-18 — Phase 13: presentation-layer pass — viewport-constrained layout, a real Inspector, content fields rendered, docs/CONSIDERATIONS.md
+Context: this session's brief was explicitly scoped to presentation only — no state model, API
+client, request shape, error handling, fail-open, action-guard, idempotency, or fixture-selection
+changes. Layout target: the whole demo visible at 1440×900 with no page scroll. The Inspector
+needed to go from "shows everything or nothing" to individually-collapsible sections. Several real
+`content` fields (`extras`, `credibility_message`, `negative_cta_warning`, `disclaimer_html`,
+`required_message`) were being fetched and discarded, undermining the "renders from the API"
+claim. Plus a mapping document, `docs/CONSIDERATIONS.md`, checking the six partner considerations
+against what's actually built.
+**Layout** (`web/src/App.css`): `html`/`body` height 100%, `body { overflow: hidden }` — the page
+itself can never scroll; `.checkout-column` and the Inspector's own `.inspector-list` each get
+their own contained scroll instead, which is the only kind of scrolling this session's brief
+allows. The single biggest fix wasn't a structural one — plain `<p>` tags carry a ~1em default
+browser margin (`web/src/App.css`), and the several new content fields (Part 3) are all rendered
+as `<p>` elements; before resetting that margin, the "selected plan" state alone needed ~55px more
+than the viewport had, entirely from unstyled paragraph spacing. One explicit reset
+(`.offer-card p, .product-card p { margin: 0.35rem 0; }`) reclaimed nearly all of it; the rest
+came from trimming `section`/`fieldset`/`.plan-option` padding by a few px each. Verified by
+reading `scrollHeight`/`clientHeight` off `document.documentElement` (not just eyeballing
+screenshots) at every state this session drove — initial, offer fetched, plan selected (the
+tallest state, since it adds the total-line and the policyholder fieldset), confirmed, cancelled,
+declined, and the unreachable-host fail-open state — all `false` for both horizontal and vertical
+overflow at 1440×900, across three markets and two quantities to make sure it holds under
+different content lengths (GBP/EUR amounts render wider than USD, GB×qty3 was the specific check).
+**Inspector** (`web/src/components/Inspector.tsx`, full rewrite): each capture entry's header now
+shows a colored `mode-badge` (amber "MOCK", green "LIVE" — "unmistakable... not grey," per the
+brief) instead of plain grey text. Expanding an entry reveals four independently-collapsible
+`Block` components (URL, request headers, request body, response body/network error), each with
+its own copy-to-clipboard button (`navigator.clipboard.writeText`, a "Copied" label for 1.5s,
+verified actually lands the right content in the clipboard via
+`page.evaluate(() => navigator.clipboard.readText())`, not just that the button exists). Request
+body defaults open, everything else defaults closed, matching "legible rather than
+exhaustive-by-default." Redaction itself (`redactHeaders` in `xcoverClient.ts`) was not touched —
+out of scope by this session's own rule, and the brief explicitly called the visible
+`signature="***redacted***"` a feature, not something to improve on.
+**Content fields** (`web/src/App.tsx`, `web/src/lib/api.ts`): widened `OfferResponse.content`'s
+type with the four new fields, all optional — deliberately not required, since a different offer
+schema might not return them and every render site (`isUsableText`, `hasEntries` helpers) has to
+degrade to nothing rather than assume presence. `extras` renders as a short list under the
+heading (the actual coverage substance — Breakdowns/Accidental Damage/Cash Refund — previously
+fetched into `capture.responseBody` for the Inspector but never shown in the checkout itself).
+`credibility_message` sits near the CTAs. `disclaimer_html` replaces the plain-text `disclaimer`
+when present, rendered via `dangerouslySetInnerHTML` after a small hand-rolled sanitizer
+(`web/src/lib/sanitizeHtml.ts` — strips every tag outside a formatting allowlist and all
+attributes unconditionally; no dependency added, matching the "no new dependencies" rule).
+`content.title` ("CSE Interview Retail Offer") is never rendered — confirmed by grepping the
+component for the string, not just by not adding the line. `sub_heading` ("N/A" on every captured
+response, `fixtures/markets/*.json`, checked across three different markets to confirm it's not
+market-specific) drove the general `isUsableText` guard, applied to every one of these fields, not
+just the one the brief used as its example.
+**`negative_cta_warning` — chose "inline note" over "confirmation prompt," the safer of the
+brief's two offered options.** A blocking confirm dialog needs its own gating state around
+`handleDecline` — arguably an action-guard change, which this session was told to stop and report
+rather than make. An always-visible inline note next to the decline button needs no new control
+flow at all — pure presentation. Recorded here as the specific reading chosen where the brief
+offered a choice, not a unilateral scope expansion.
+**Checkout details**: policyholder fieldset now conditional on `selectedProductId` — previously
+shown unconditionally and dominating the card. Email input widened (`fieldset input.wide`) after
+confirming visually it was actually truncating a real address, not just narrow-looking. Plan
+options restructured into a comparable row (name left, price bold and right-aligned, selected
+state highlighted) instead of one inline radio label. Disabled "Add protection" now shows
+`content.required_message` ("Please make a selection") next to it rather than being disabled with
+no explanation. A new `.total-line` spells out `product + protection = total` explicitly using the
+selected plan's real price, addressing "make the relationship obvious" literally rather than
+trusting proximity alone.
+**Visual**: one accent color (`--accent: #1d4ed8`), used for primary buttons, the selected-plan
+border/background, and Inspector copy-button hover — nowhere else. No shadows, no gradients, no
+component library, no new npm dependency (`sanitizeHtml.ts` is a new *file*, not a new
+*dependency*). Tension worth stating plainly: Part 5 asked for "generous whitespace," Part 1 asked
+for everything to fit in 900px with several new content fields added — those two pull against
+each other, and the viewport constraint won where they conflicted, since it's the harder
+functional requirement. The result reads as tidy and dense rather than spacious, which the brief's
+own framing ("RealCheap is a discount marketplace — dense and plain is on-brand") suggests is the
+right tradeoff, not a compromise.
+**`docs/CONSIDERATIONS.md`**: mapped all six partner considerations against real code/captures,
+three-tier classification (Demonstrated live / Built but unverifiable / Designed, not built).
+Two things checked empirically rather than assumed: (1) whether `cse-interview-retail` accepts
+`sku`/`category` fields at all — probed live (`fixtures/probe/sku-category-test.json`), confirmed
+`200` (not rejected as unknown) but no observable evidence they're consumed for eligibility,
+which is the honest, complete answer to "why isn't this built," not a guess. (2) Settlement's
+field citations in `docs/ARCHITECTURE.md` — checking them against real fixtures while writing
+`CONSIDERATIONS.md` surfaced that `commission.partner_commission` and a nested
+`partner.transaction_id` were never real field names (the actual paths are
+`products[].details.finance.commission.total_amount` and a top-level `partner_transaction_id`,
+which is `null` in every capture this repo has ever made) — corrected in `ARCHITECTURE.md`
+directly, not left to propagate into the new document as a second copy of the same error.
+Alternatives rejected: adding `@playwright/test` or any other testing/UI dependency to formally
+test the sanitizer or the layout — this session's constraints (no new dependencies) and CLAUDE.md's
+narrow testing bar (the signing vector) both argue against it; verified empirically via throwaway
+Playwright instead, same pattern every prior UI-verification phase in this project has used.
+AI note: the ARCHITECTURE.md field-name errors were an unplanned find — went looking for evidence
+to cite in `CONSIDERATIONS.md`'s settlement section, tried to verify the fields ARCHITECTURE.md
+already named, and they didn't exist under those names in any real fixture. A good example of why
+"derive every claim from the code and the captures" (this session's own instruction for the new
+doc) also ends up auditing the old ones, if taken literally instead of copied from a doc that
+already claimed to have done that work.
+
 ### 2026-08-18 — Phase 12: full-history gitleaks scan, redacted 25 real security tokens in tracked fixtures
 Context: last session's blind adversarial review (Finding 2, recorded in `docs/BLIND-REVIEW-2.md`,
 untracked) found that Phase 9's gitleaks work only ever validated the pre-commit hook against a
