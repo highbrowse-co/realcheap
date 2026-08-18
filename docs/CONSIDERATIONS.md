@@ -45,13 +45,16 @@ now renders `extras` (three real bullets — Breakdowns, Accidental Damage, Cash
 gap between "renders from the API" as a claim and as an observable fact.
 
 Honest limitation: "coverage calculation" here means a price plus a marketing-level summary of
-what's covered, not an itemized peril schedule. `products[].benefits`, `.inclusions`, and
+what's covered, not an itemized peril schedule. `content.products[].benefits`, `.inclusions`, and
 `.exclusions` are empty objects on every response this project has ever captured
-(`docs/SANDBOX-CAPABILITIES.md`, Probe 2) — there's no structured, line-item coverage breakdown
-available from this endpoint on this account, only the three `extras` bullets. The rating formula
-itself (why quantity scales non-linearly, why Italy's 3-year plan prices above its 2-year plan)
-is an intentional black box — confirmed to exist and to move prices, never reverse-engineered,
-per `docs/OPEN-QUESTIONS.md` #2 and #5.
+(`docs/SANDBOX-CAPABILITIES.md`, Probe 2; confirmed at this exact path — there's a second,
+separate `products[].details.benefits` field, an empty list rather than an empty object, equally
+unpopulated) — there's no structured, line-item coverage breakdown available from this endpoint
+on this account, only the three `extras` bullets. The rating formula itself — why quantity scales non-linearly, and why the
+2-year/3-year plan ordering isn't stable across market or quantity (`docs/OPEN-QUESTIONS.md` #5;
+not an Italy-specific quirk as first thought — every market shows both orderings at different
+quantities) — is an intentional black box, confirmed to exist and to move prices, never
+reverse-engineered, per `docs/OPEN-QUESTIONS.md` #2 and #5.
 
 ## 3. Quantity-based rating for multi-unit orders
 
@@ -98,16 +101,22 @@ reconfirms this live for a EUR market on every run.
 **Settlement — money movement and reconciliation — designed, not built, zero code.** No ledger,
 no payout tracking, no reconciliation job exists anywhere in this repo. `docs/ARCHITECTURE.md`'s
 "Settlement and reconciliation" section describes where it would attach: a scheduled job reading
-`products[].details.finance.commission.total_amount` (Create Offer, only populated with
-`extra_fields=commission` — `docs/API-NOTES.md`; `fixtures/probe/extra-fields-test.json`) and
-`total_premium`/`total_premium_formatted` (Confirm Offer, top-level;
-`fixtures/confirm-offer.json`) against RealCheap's own ledger, joined by `partner_transaction_id`
-(a real top-level field on Confirm Offer's response — but `null` in every capture in this repo;
-this sandbox account has never populated it, so even the join key is unverified as a working
-mechanism, not just the job that would use it). These three field paths were wrong in
-`docs/ARCHITECTURE.md` before this document was written (`commission.partner_commission` and a
-nested `partner.transaction_id` were never real field names) — corrected there in the course of
-verifying this section, not left to propagate.
+`quotes[].commission.partner_commission`/`.total_commission` (per-quote, real, but only on
+**Confirm Offer**'s response, not on Create Offer or Cancel Booking —
+`fixtures/confirm-offer.json`) and `total_premium`/`total_premium_formatted` (top-level, real on
+both Confirm Offer and Cancel Booking — `fixtures/confirm-offer.json`,
+`fixtures/cancel-booking.json`) against RealCheap's own ledger, joined by
+`partner_transaction_id` (a real top-level field, Confirm-Offer-only — but `null` in every
+capture in this repo; this sandbox account has never populated it, so even the join key is
+unverified as a working mechanism, not just the job that would use it). Create Offer has a
+*different*, separate commission field —
+`products[].details.finance.commission.total_amount`, only populated with
+`extra_fields=commission` (`docs/API-NOTES.md`; `fixtures/probe/extra-fields-test.json`) — easy
+to conflate with the Confirm Offer one since both are called "commission." `docs/ARCHITECTURE.md`
+originally cited `commission.partner_commission` correctly (it's real, just needed the endpoint
+context) but a first attempt at fixing it here replaced it with the wrong endpoint's commission
+field entirely — caught and corrected by checking the exact path against real captures rather
+than trusting either version.
 
 Quoting seven markets in seven currencies and reconciling real money movement across seven
 regions are different engineering problems with different amounts of work behind them here: one

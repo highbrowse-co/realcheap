@@ -253,6 +253,12 @@ export function App() {
 
   const selectedProduct = offer?.products.find((p) => p.id === selectedProductId);
 
+  // Every capture in one running session reflects the same server-wide
+  // MOCK_MODE value (it's set at server startup, never toggled mid-session),
+  // so the most recent entry's flag is a reliable read — no new state, no
+  // extra call, just derived from what's already captured.
+  const mockMode = entries.length > 0 ? entries[entries.length - 1].capture.mock : false;
+
   return (
     <div className="page">
       <header>
@@ -455,9 +461,17 @@ export function App() {
                   Protection confirmed — booking <strong>{booking.id}</strong> (
                   {booking.status}), {booking.total_price_formatted}.
                 </p>
-                <a href={booking.coi.url} target="_blank" rel="noreferrer">
-                  Certificate of Insurance
-                </a>
+                {mockMode ? (
+                  <p className="muted small">
+                    Certificate of Insurance link disabled in MOCK_MODE — the security token in
+                    recorded fixtures is a synthetic placeholder, not a real one, so the real link
+                    wouldn't resolve.
+                  </p>
+                ) : (
+                  <a href={booking.coi.url} target="_blank" rel="noreferrer">
+                    Certificate of Insurance
+                  </a>
+                )}
 
                 {!cancellation && (
                   <div className="cancel-box">

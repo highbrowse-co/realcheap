@@ -158,13 +158,17 @@ real order management system").
 
 **What it would do**: periodically reconcile XCover's reported commission and premium totals
 against RealCheap's own ledger, to catch drift (a cancelled-but-not-refunded policy, a commission
-that never landed, etc.). Real fields for this exist and are already captured in this repo's
-fixtures — corrected here after checking the actual captures rather than trusting the field names
-this section previously cited: commission is `products[].details.finance.commission.total_amount`
-on Create Offer (only populated with `extra_fields=commission`, `docs/API-NOTES.md`;
-`fixtures/probe/extra-fields-test.json`), and `total_premium`/`total_premium_formatted` on Confirm
-Offer (top-level, `fixtures/confirm-offer.json`) — not `commission.partner_commission`, which was
-never a real field name.
+that never landed, etc.). Real fields for this exist, confirmed at the exact paths below (checked
+against real captures, not assumed): `quotes[].commission.partner_commission` /
+`.total_commission` (+ `_formatted` variants) is real and per-quote, but only on **Confirm
+Offer**'s response (`fixtures/confirm-offer.json`) — confirmed absent from Cancel Booking's
+`quotes[]` (`fixtures/cancel-booking.json`), which has no `commission` key at all. Create Offer
+has a *different* commission field, `products[].details.finance.commission.total_amount`, only
+populated when the request passes `extra_fields=commission` (`docs/API-NOTES.md`;
+`fixtures/probe/extra-fields-test.json`) — two real fields, different shapes, different
+endpoints, easy to conflate. `total_premium`/`total_premium_formatted` is top-level and real on
+**both** Confirm Offer and Cancel Booking (`fixtures/confirm-offer.json`,
+`fixtures/cancel-booking.json`).
 
 **Why out of scope**: needs a real ledger and a real settlement/payout cadence with Cover
 Genius, neither of which is meaningful to fake for a demo — a mock reconciliation job reconciling

@@ -64,11 +64,11 @@ different pricing (not just currency conversion — see below). `retail_value: 1
 
 Notable, unexplained: the four EUR markets (IT/FR/ES/DE) price *differently from each other*
 despite identical currency and inputs — confirms `customer.country` drives rating independently
-of currency, not just a currency conversion applied to one base EUR price. Also notable: **IT is
-the only market where the 3-year plan is priced higher than the 2-year plan** (€360.44 vs
-€336.77); every other market has 3yr cheaper than 2yr. This wasn't investigated further — it's
-plausibly a real underwriting/rating input for Italy, or a sandbox data quirk — and is listed in
-"To send to Cover Genius" below rather than guessed at.
+of currency, not just a currency conversion applied to one base EUR price. Also notable at this
+specific quantity (1): IT is the only market here where the 3-year plan prices higher than the
+2-year plan (€360.44 vs €336.77) — but this is *not* an Italy-specific pattern once quantity
+varies too; every market shows both orderings at different quantities, IT just happened to be the
+one outlier at qty 1. Full picture: `docs/OPEN-QUESTIONS.md` #5.
 
 **Assumed, not confirmed**: whether this pricing behavior (or these exact price points) is
 stable/representative of production — this is a sandbox, and prices for identical inputs

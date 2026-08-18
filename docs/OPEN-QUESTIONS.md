@@ -106,24 +106,45 @@ today, but it means the API itself isn't a safety net if a future integration ca
 server-side — no-op, reversal, or something else? Should partners guard against calling it
 post-confirm themselves, or is this expected to be safe/idempotent by design?
 
-## 5. Italy prices its 3-year plan higher than its 2-year plan; every other market is the reverse
+## 5. The 2-year/3-year price ordering is not stable across market or quantity
 
-Found during the Session 1.5 market sweep (`docs/SANDBOX-CAPABILITIES.md` Probe 3). Same
-`retail_value`/`quantity`/`purchase_date` quoted for all 7 markets: in every market except IT,
-the 3-year plan is cheaper than the 2-year plan (as you'd expect — more time to spread the
-premium). In IT it's the other way around (€360.44 for 3yr vs €336.77 for 2yr,
-`fixtures/probe/market-IT.json`). Not investigated further — could be a real Italy-specific
-underwriting input or a sandbox data quirk for this offer config.
+Originally recorded (Session 1.5 market sweep, qty 1 only) as "Italy is the one market where the
+3-year plan costs more than the 2-year plan; every other market has the reverse." That framing
+doesn't hold once quantity is varied too — corrected here after building the full 7 markets × 5
+quantities table (all 35 real captures, `fixtures/markets/create-offer-{market}[-qty{n}].json`)
+rather than trusting the single-quantity snapshot that produced the original claim:
 
-**Ask Cover Genius directly**: is the IT 3yr > 2yr pricing intentional (a real rating input for
-that market), or a configuration issue in this sandbox's `cse-interview-retail` offer config?
+| Market | qty1 | qty2 | qty3 | qty4 | qty5 |
+|---|---|---|---|---|---|
+| US | 2yr > 3yr | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr | 2yr > 3yr |
+| CA | 2yr > 3yr | 2yr > 3yr | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr |
+| GB | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr | 2yr > 3yr | 2yr < 3yr |
+| IT | 2yr < 3yr | 2yr > 3yr | 2yr > 3yr | 2yr > 3yr | 2yr > 3yr |
+| FR | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr | 2yr < 3yr | 2yr < 3yr |
+| ES | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr | 2yr > 3yr | 2yr < 3yr |
+| DE | 2yr > 3yr | 2yr > 3yr | 2yr < 3yr | 2yr < 3yr | 2yr < 3yr |
 
-**Related, found during Phase 2** (2026-08-15): the ordering isn't fixed per market either — at
-`quantity: 1` the US prices 2yr above 3yr ($585.85 vs $532.29, normal ordering), but at
-`quantity: 3` that flips too ($1139.94 vs $1244.48, `fixtures/markets/create-offer-US-qty3.json`).
-So this isn't "Italy is special," it's "the 2yr/3yr ordering isn't stable across market or
-quantity" — consistent with an underlying rating curve neither market nor quantity alone
-explains, which is exactly the kind of thing not to reverse-engineer further per scope.
+("2yr > 3yr" means the 2-year plan's total price is higher than the 3-year plan's — e.g. US at
+qty1: 2-year US$585.85, 3-year US$532.29. At qty3 the same market shows the reverse: 2-year
+US$1,139.94, 3-year US$1,244.48.)
+
+**What this rules out**: it isn't market-specific (every one of the 7 markets shows both orderings
+at different quantities — IT is not uniquely inverted, it's just the only market where qty1
+happened to show the less-common ordering) and it isn't a single quantity threshold either (no
+market flips exactly once and stays flipped — most flip back and forth as quantity increases,
+e.g. GB: >,<,<,>,< across qty 1–5). Whatever determines the ordering, it isn't simply "market" or
+"quantity" in isolation.
+
+**What this doesn't rule out**: a real, deliberate rate table where each market/quantity/plan-
+length combination is priced independently (which the pricing separately being confirmed
+non-linear per quantity, `docs/OPEN-QUESTIONS.md` #2, is consistent with) — a genuinely granular
+rate table could produce exactly this kind of pattern with no bug involved, or it could be a
+sandbox data-quality artifact for this specific offer config. Both are plausible; this document
+doesn't take a position on which, per this project's own instruction not to guess.
+
+**Ask Cover Genius directly**: is the 2-year/3-year ordering meant to vary independently by
+market and quantity, or is there an intended monotonic relationship (longer plan always cheaper,
+or always more expensive) that this sandbox's rate table isn't currently producing?
 
 ## 6. Outbound call timeout (10s) is an assumption, not a documented value
 
@@ -149,8 +170,8 @@ Offers/Bookings API? Is 10s reasonable, or does typical p99 latency run close to
   (#3)
 - Does Opt Out Offer on an already-confirmed offer do anything server-side, and should partners
   guard against calling it post-confirm? (#4)
-- Is IT's 3yr-more-expensive-than-2yr pricing intentional, or a config issue in this offer
-  config? (#5)
+- Is the 2-year/3-year plan price ordering meant to vary independently by market and quantity,
+  or should it be monotonic? (#5)
 - Is there a published or recommended client-side timeout for the Offers/Bookings API? (#6)
 
 Kept short on purpose — everything else needed for the build was answered empirically against

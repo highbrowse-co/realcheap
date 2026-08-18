@@ -1,5 +1,84 @@
 # Decisions
 
+### 2026-08-18 — Phase 14: field-name audit, COI verification, pricing-inversion rewrite
+Context: Phase 13 found and fixed two fabricated field names in `docs/ARCHITECTURE.md`'s
+settlement section while sourcing evidence for `docs/CONSIDERATIONS.md`. This session's brief was
+explicit: nobody had ever swept the tracked docs specifically for this failure class, and a
+reviewer with the API reference open who spots one fabricated field discredits every other claim
+in the document — so audit systematically rather than spot-check.
+**Method**: extracted every backtick-quoted span from all 7 tracked docs (`README.md`,
+`ARCHITECTURE.md`, `API-NOTES.md`, `SANDBOX-CAPABILITIES.md`, `OPEN-QUESTIONS.md`,
+`DECISIONS.md`, `CONSIDERATIONS.md`) and every `.ts`/`.tsx` source comment (1,224 spans),
+filtered to 111 candidates shaped like field names or dotted paths (excluding file names, code
+identifiers, CLI commands). Cross-referenced each against a full index of every real JSON key
+path across all 95 fixture files (603 unique dotted paths, built by walking the actual fixture
+JSON, not by re-reading docs). Separately verified — since the automated extraction's regex only
+caught lowercase snake_case, missing mixed-case headers and slash-containing paths — every HTTP
+header name (5), every documented endpoint path (5), every status-code/error-shape claim in the
+failure-shapes table (7), and the full policy-type/underwriter field block (7 fields) against
+real captures directly. Total: roughly 140 distinct field/path/header/endpoint/status/value
+citations checked against real data, not memory.
+**Found wrong: 3, all self-inflicted from Phase 13's own rushed fix, none from earlier phases.**
+(1) Phase 13's ARCHITECTURE.md fix claimed `commission.partner_commission` "was never a real
+field name" — it's real: `quotes[].commission.partner_commission` on **Confirm Offer**'s response
+(`fixtures/confirm-offer.json`, verified: `385.04`), a completely different field from the
+Create-Offer-only `products[].details.finance.commission.total_amount` that Phase 13 replaced it
+with. Two real commission fields, different endpoints, different shapes, easy to conflate — Phase
+13 fixed one inaccuracy by introducing a different one. Corrected in both `ARCHITECTURE.md` and
+`CONSIDERATIONS.md` with the full, verified picture (also checked: `total_premium` is real on
+*both* Confirm Offer and Cancel Booking; `partner_transaction_id` is Confirm-Offer-only, still
+`null` in every capture). (2) `CONSIDERATIONS.md` cited `products[].benefits`/`.inclusions`/
+`.exclusions` as the empty fields — the real path is `content.products[].benefits` etc.; a
+second, separate `products[].details.benefits` field also exists and is also empty, but as a
+list, not an object. Caught while re-verifying my own just-written correction for (1), a good
+argument for re-checking a fix immediately rather than trusting it because it was just written.
+(3) `OPEN-QUESTIONS.md` #5 framed the 2yr/3yr price-ordering flip as Italy-specific — see below,
+this was incomplete, not fabricated (every number cited was real), but materially misleading.
+**COI link (Part 2)**: live-verified with two independent fresh bookings (different markets,
+confirmed live, both cancelled afterward to leave the sandbox clean — neither fixture was kept
+tracked, since both captures briefly contained a real, unredacted `security_token` and this
+project already has a redaction discipline for exactly that). Both bookings' `coi.url` loads a
+real, correctly-titled XCover.com page ("Certificate of Insurance | XCover.com," real branding,
+real legal footer) but the underlying `api/v1/coi/{id}/` call the page itself makes returns a
+`500` both times — confirmed via Playwright (a real browser, not just `curl`, since the page is
+client-rendered and a raw HTTP 200 on the shell doesn't mean the certificate rendered). The `.pdf`
+variant returns a clean `404` (`{"type":"api_error","message":"Not found."}`) rather than a PDF.
+Not chased further — reproducing this twice independently is enough to call it a real staging
+limitation worth reporting, not a fluke worth spending more live calls chasing down. In
+MOCK_MODE, `web/src/App.tsx` now renders a disabled-looking inline note instead of a live-looking
+link when `coi.url` would contain the synthetic placeholder token from Phase 12's redaction —
+derived from the most recent Inspector entry's `capture.mock` flag (already captured data, no new
+state, no new call: `MOCK_MODE` is fixed for a server's whole lifetime, so any entry's flag is
+valid for the whole session). This is the one presentation change this session's brief allowed.
+**Pricing-inversion rewrite (Part 3)**: built the full 7-market × 5-quantity ordering table (all
+35 real captures) rather than trusting the single-quantity snapshot that produced the original
+"Italy is special" framing. The full picture is more chaotic than even this session's brief
+anticipated: every market shows *both* orderings at different quantities, most flip back and
+forth more than once as quantity increases (not just a single crossover) — genuinely not
+market-specific and not a fixed quantity-threshold effect either. Rewrote `docs/OPEN-QUESTIONS.md`
+#5 with the full table and reframed the open question from "is Italy's pricing intentional" to
+"is this ordering meant to vary independently by market/quantity, or should it be monotonic,"
+per this session's explicit instruction to frame it as an observation, not a diagnosis. Updated
+the two other tracked docs that repeated the old Italy-specific framing
+(`SANDBOX-CAPABILITIES.md` Probe 3, `CONSIDERATIONS.md` item 2) to point at the corrected entry
+rather than repeat the superseded claim.
+**SKU/category wording (Part 4)**: re-read `CONSIDERATIONS.md` item 1 against the brief's
+concern — already states plainly that the schema does not reject the fields and that nothing
+indicates they're consumed, without implying either rejection or wired-up eligibility. No change
+needed; confirmed rather than assumed still correct.
+Alternatives rejected: keeping the two probe captures from COI verification as tracked fixtures
+for citability — rejected, since both contained a real security token this session would then
+have to immediately redact again, and the finding (reproduced twice, independently) doesn't need
+a third artifact sitting in the repo to be credible.
+AI note: this phase is a direct, uncomfortable data point on the previous phase's own reliability.
+Phase 13's DECISIONS.md entry described its ARCHITECTURE.md fix as "verified" — it was verified
+against a JSON key search, but not against the specific endpoint the original sentence was
+actually describing, which is exactly the gap a keyword match doesn't catch and a full path
+check does. The fix in this phase for finding (1) was itself checked against real captures
+immediately after writing it (catching finding (2) in the process) rather than trusted on the
+strength of "this one was written more carefully" — the same mistake in the same section would
+have been a genuinely bad look for a document whose entire job is being trustworthy.
+
 ### 2026-08-18 — Phase 13: presentation-layer pass — viewport-constrained layout, a real Inspector, content fields rendered, docs/CONSIDERATIONS.md
 Context: this session's brief was explicitly scoped to presentation only — no state model, API
 client, request shape, error handling, fail-open, action-guard, idempotency, or fixture-selection
