@@ -1,5 +1,67 @@
 # Decisions
 
+### 2026-08-18 — Phase 16: executed the git history scrub, per direct instruction
+Context: every prior session was explicit that the scrub prepared in `docs/SCRUB-PLAN.md` was a
+manual, later action, not something to run automatically — "I will execute this manually. Prepare
+it, do not run it" appeared verbatim across multiple sessions. This session's instruction reversed
+that directly and specifically: "Execute the scrub per SCRUB-PLAN.md, with --prune-empty never" —
+naming the exact document and the exact flag the plan itself called "not optional." Treated as
+clear, scoped authorization for this one action, not a standing license to rewrite history in
+general.
+**Ran the plan, not from memory** — re-read `docs/SCRUB-PLAN.md` in full first, then re-verified
+every precondition against the *current* repo (not trusted from when the plan was written two
+phases earlier): `git-filter-repo` still installed, no remotes/branches/tags, current
+`signing.test.ts` blob still the safe one, the bad blob (`fd96b62a...`) still referencing exactly
+one path, working tree clean. All matched.
+**One real deviation from the written plan, found only by running it**: `git clone` of a local
+path uses hardlinks by default, which `git filter-repo` refuses to operate on ("does not look
+like a fresh clone") — the plan's clone command needed `--no-local`, not written into
+`docs/SCRUB-PLAN.md` because the drill that verified the plan was built from scratch with `git
+init`, never via `git clone`, so this exact failure mode never had a chance to surface until now.
+Corrected immediately, verified the strip then proceeded normally.
+**Verified all four checks from the plan, before *and* after applying to the real repo** — bad
+blob unreachable, all 12 original commit messages present, current `signing.test.ts` byte-for-byte
+unchanged, and the secret's actual plaintext absent from history. That last check needed
+`.env`, which the disposable scratch clone doesn't have (gitignored) — copied the real `.env`
+into the scratch clone momentarily for that one check only, deleted it immediately after
+(`rm -f`, confirmed gone), never printed or written anywhere else. Ran the same four checks a
+second time against the real repo after the `.git` swap, including the `.env`-dependent one this
+time using the real repo's own already-present `.env` — no copying needed there.
+**Applied via the documented `.git`-directory swap** (moved the original `.git` to
+`.git.bak-pre-scrub`, copied in the scrubbed clone's `.git`) — no remote was created or used,
+matching every session's standing instruction. Working tree confirmed unchanged by `git status`
+immediately after (history rewriting doesn't touch files on disk, only what's committed — the
+plan's own drill had already established this, held again here).
+**Side effects handled, all six from the plan's own list**: (1) 27 of 37 commits now have new
+hashes — confirmed, `e072e9a` is now `4f1e61a`; only the 3 earliest scaffold commits kept their
+original hashes. (2) The stale `e072e9a` citation in this file's own Phase 5 entry got the inline
+correction the plan anticipated (see immediately above), not a rewrite. (3) `core.hooksPath` was
+gone after the swap (fresh clone's `.git/config`, not tracked content) — restored
+(`git config core.hooksPath .githooks`) and **re-verified it still actually blocks a commit**,
+not just that the config value was set: staged a fresh synthetic high-entropy secret, `git commit`
+correctly refused it (`exit 1`), then unstaged and deleted the test file. (4)/(5) `npm run test`,
+`npm run lint`, `npm run smoke` (9/9 live) all re-run and clean on the real repo post-swap, then a
+**third**, independent fresh clone of the now-scrubbed repo — `npm install`, test, lint, and a
+full Playwright pass (opt-in, market switch, quantity change, confirm, cancel, decline, zero
+console errors, no overflow) — confirming the scrub didn't just leave the real repo's working
+tree intact but that a stranger cloning it fresh gets a fully working app, not only a rewritten
+history. (6) The real secret is unchanged by any of this — still needs rotating with Cover
+Genius, a fact this file has flagged since Phase 5 and this phase does not change.
+**Left deliberately undone**: `.git.bak-pre-scrub` (the exact pre-scrub `.git`, byte for byte)
+still sits in the working directory. Not removed — deleting it is itself a further destructive,
+harder-to-reverse-than-the-scrub-itself action (once gone, the pre-scrub history isn't recoverable
+from anywhere), and nothing in this session's instruction asked for that specific follow-on step.
+Left for a deliberate, separate decision.
+Alternatives rejected: none worth recording — this phase's job was executing an already-decided,
+already-drilled plan precisely, not making new design choices.
+AI note: the `--no-local` gap is a small but real instance of exactly the failure mode this whole
+project has repeatedly found and named — a plan verified against a synthetic drill doesn't
+automatically transfer to the real invocation shape (a `git init`-built throwaway repo behaves
+differently from a `git clone` of the actual target repo at the one step that mattered). Caught
+by actually running the real command against the real repo's clone and reading the real error,
+not by re-reading the plan more carefully — the plan's own text was internally consistent and
+still wrong about this one operational detail until it hit reality.
+
 ### 2026-08-18 — Phase 15: final pre-freeze pass — doc currency, UI copy, a third blind review
 Context: the last change before the history scrub and freeze, opened with an explicit, unusual
 instruction: the field audit two phases ago found three wrong field names, and all three were
@@ -796,6 +858,14 @@ authorization, not something to do automatically because a review flagged it. Fl
 the user, not just logged here: **the credential should be treated as compromised and rotated with
 Cover Genius regardless of what happens to this repo's history**, since it's been in a
 world-readable state (to anyone who cloned or was given repo access) since the second work session.
+
+**Correction (2026-08-18, Phase 16 — the scrub described above ran):** the hash `e072e9a` cited
+throughout this entry no longer resolves — `git filter-repo` rewrote it and every commit after it
+(see Phase 16's entry, top of this file, for the full record). The commit this entry describes
+still exists, now as `4f1e61a`, with the same message, author, and date; only its hash changed, as
+a direct consequence of removing the blob this entry is about. Left the original text above
+unedited rather than swapping the hash in place, per this file's own rule — this is what was true
+and how it was verified at the time this entry was written.
 
 **High, confirmed and fixed — MOCK_MODE Confirm Offer showed currency-mismatched figures with no
 disclaimer.** The Phase 4 fix only patched top-level `total_price`; everything else (tax, premium,
